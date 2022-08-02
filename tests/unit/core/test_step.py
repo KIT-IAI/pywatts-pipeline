@@ -148,6 +148,7 @@ class TestStep(unittest.TestCase):
         self.module_mock.transform.return_value = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"],
                                                                coords={'time': time})
         step = Step(self.module_mock, {"x": input_step}, file_manager=MagicMock())
+        # TODO: I think get results awaits list of time indexes?
         step.get_result(pd.Timestamp("2000.01.01"), pd.Timestamp("2020.12.12"))
 
         # Two calls, once in should_stop and once in _transform
@@ -211,6 +212,7 @@ class TestStep(unittest.TestCase):
         input_dict = {'input_data': None}
         step = Step(self.module_mock, {"x": self.step_mock}, None)
         step._fit(input_dict, {})
+        # TODO input_dict has no attribute dims
         step._transform(input_dict)
         self.module_mock.transform.assert_called_once_with(**input_dict)
 
@@ -277,6 +279,7 @@ class TestStep(unittest.TestCase):
 
         self.assertIsNone(None)
         assert step.current_run_setting.computation_mode == ComputationMode.Default
+        # TODO: None type does not support index access
         assert step._should_stop(None, None) == False
         assert step.finished == False
 
@@ -287,6 +290,7 @@ class TestStep(unittest.TestCase):
     def test_refit_refit_conditions_false(self, isinstance_mock, get_input_mock, get_target_mock):
         step = Step(self.module_mock, {"x": self.step_mock}, file_manager=None, refit_conditions=[lambda x, y: False],
                     computation_mode=ComputationMode.Refit)
+        # TODO: Timestamp has no attribute dims
         step.refit(pd.Timestamp("2000.01.01"), pd.Timestamp("2020.01.01"))
         self.module_mock.refit.assert_not_called()
 
@@ -309,9 +313,3 @@ class TestStep(unittest.TestCase):
                     computation_mode=ComputationMode.Refit)
         step.refit(pd.Timestamp("2000.01.01"), pd.Timestamp("2020.01.01"))
         self.module_mock.refit.assert_called_once_with(x=2, target=1)
-
-    def test_has_to_renew_buffer(self):
-        self.fail()
-
-    def test_renew_buffer(self):
-        self.fail()
