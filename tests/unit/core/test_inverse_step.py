@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from pywatts_pipeline.core.exceptions.kind_of_transform_does_not_exist_exception import \
     KindOfTransformDoesNotExistException, \
@@ -29,11 +29,17 @@ class TestInverseTransform(unittest.TestCase):
         self.input_step = None
         self.inverse_step = None
 
-    def test_get_result(self):
+    def test_get_result(self, *args):
         # This test checks if the get_result methods works corerctly, i.e. if it returns the correct result of the step and
         # calculate it if necessary.
+        time = pd.date_range('2000-01-01', freq='24H', periods=7)
+        da = xr.DataArray([[2, 0], [3, 2], [4, 3], [5, 4], [6, 5], [7, 6], [8, 7]],
+                                dims=["time", "horizon"], coords={"time": time, "horizon": [0, 1]})
+        self.input_step.get_result.return_value = da
         self.inverse_step.get_result(pd.Timestamp("2000.01.01"), None)
-        self.inverse_module.inverse_transform.assert_called_once_with(input=self.input_step.get_result())
+        self.inverse_module.inverse_transform.assert_called_once()
+        xr.testing.assert_equal(self.inverse_module.inverse_transform.call_args[1]["input"],
+                                da)
 
     def test_get_result_stop(self):
         self.input_step.get_result.return_value = None
