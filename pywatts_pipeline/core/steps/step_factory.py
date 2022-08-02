@@ -14,7 +14,7 @@ from pywatts_pipeline.core.steps.pipeline_step import PipelineStep
 from pywatts_pipeline.core.steps.probabilistic_step import ProbablisticStep
 from pywatts_pipeline.core.steps.step import Step
 from pywatts_pipeline.core.steps.step_information import StepInformation, SummaryInformation
-from pywatts.callbacks import BaseCallback
+from pywatts_pipeline.core.callbacks import BaseCallback
 from pywatts_pipeline.core.steps.summary_step import SummaryStep
 
 
