@@ -15,8 +15,11 @@ class EitherOrStep(BaseStep):
         super().__init__(input_steps)
         self.name = "EitherOr"
 
-    def _compute(self, start, end, minimum_data):
-        input_data = self._get_input(start, end, minimum_data)
+    def _compute(self, start, end, minimum_data=None):
+        if minimum_data:
+            input_data = self._get_input(start, end, minimum_data)
+        else:
+            input_data = self._get_input(start, end)
         return self._transform(input_data)
 
     def _get_input(self, start, batch, minimum_data=(0, pd.Timedelta(0))):

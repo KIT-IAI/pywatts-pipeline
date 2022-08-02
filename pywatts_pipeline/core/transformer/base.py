@@ -14,7 +14,7 @@ from pywatts_pipeline.core.util.filemanager import FileManager
 from pywatts.callbacks import BaseCallback
 
 if TYPE_CHECKING:
-    from pywatts.core.step_factory import StepInformation
+    from pywatts_pipeline.core.step_factory import StepInformation
 
 
 class Base(ABC):

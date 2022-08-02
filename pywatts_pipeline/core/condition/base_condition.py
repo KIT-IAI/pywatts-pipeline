@@ -4,8 +4,8 @@ from typing import List
 
 import xarray as xr
 
-from pywatts.core.exceptions.step_creation_exception import StepCreationException
-from pywatts.core.step_information import StepInformation
+from pywatts_pipeline.core.exceptions.step_creation_exception import StepCreationException
+from pywatts_pipeline.core.step_information import StepInformation
 import pandas as pd
 
 class BaseCondition(ABC):

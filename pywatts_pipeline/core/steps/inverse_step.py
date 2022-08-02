@@ -1,4 +1,4 @@
-from pywatts.core.exceptions.kind_of_transform_does_not_exist_exception import \
+from pywatts_pipeline.core.exceptions.kind_of_transform_does_not_exist_exception import \
     KindOfTransformDoesNotExistException, KindOfTransform
 from pywatts_pipeline.core.steps.step import Step
 

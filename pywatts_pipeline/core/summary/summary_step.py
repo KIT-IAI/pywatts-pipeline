@@ -1,11 +1,11 @@
 import logging
 from typing import Dict
 
-from pywatts.core.base_step import BaseStep
-from pywatts.core.base_summary import BaseSummary
-from pywatts.core.summary_object import SummaryObject
-from pywatts.core.filemanager import FileManager
-from pywatts.core.step import Step
+from pywatts_pipeline.core.base_step import BaseStep
+from pywatts_pipeline.core.base_summary import BaseSummary
+from pywatts_pipeline.core.summary_object import SummaryObject
+from pywatts_pipeline.core.filemanager import FileManager
+from pywatts_pipeline.core.step import Step
 
 logger = logging.getLogger(__name__)
 
