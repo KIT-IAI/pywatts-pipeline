@@ -53,7 +53,7 @@ class Pipeline(BaseTransformer):
     def __init__(self, path: Optional[str] = ".", name="Pipeline"):
         # TODO integrate Miraes API
         super().__init__(name)
-        self.assembled_steps = None
+        self.assembled_steps = []
         self.result = {}
         self.start_steps = dict()
         self.steps: List[BaseStep] = []
@@ -150,7 +150,7 @@ class Pipeline(BaseTransformer):
             if parameter == "assembled_step":
                 self.step_counter = 0
                 for step in parameter:
-                    self._register_step(step)
+                    self.assembled_steps.append(step)
                 setattr(self, parameter, value)
 
             elif parameter in self.parameters.keys():#TODO and type(value) in self.make_list(
@@ -168,6 +168,7 @@ class Pipeline(BaseTransformer):
                         ]
                     )
                 )
+
     def test(self, data: Union[pd.DataFrame, xr.Dataset], summary: bool = True,
              summary_formatter: SummaryFormatter = SummaryMarkdown(), refit=False, reset=False):
         """
@@ -276,19 +277,19 @@ class Pipeline(BaseTransformer):
          #   f"{'.' if not input_ids else f' and the target is {[step for step in self.get_steps_by_ids(target_ids)]}.'}"
         #)
 
-    def get_step(self, edge, steps, start_steps):
+    def get_step(self, edge, steps):
         for step in steps:
             if step.name == edge:
                 return StepInformation(step=step, pipeline=self)
-        if edge not in start_steps.keys():
+        if edge not in self.start_steps.keys():
             start_step = StartStep(edge)
-            start_steps[edge] = start_step, StepInformation(step=start_step, pipeline=self)
-        start_step.name = edge
-
-        self.steps.append(start_step)
-        params = self.assemble(self.steps)
-        self.set_params(**params)
-        return start_steps[edge][-1]
+            self.start_steps[edge] = start_step, StepInformation(step=start_step, pipeline=self)
+            start_step.name = edge
+            self.add(module=start_step)
+            self.steps.append(start_step)
+            params = self.assemble(self.steps)
+            self.set_params(**params)
+            return self.start_steps[edge][-1]
 
 
 
@@ -303,7 +304,7 @@ class Pipeline(BaseTransformer):
                     retrain_batch: Optional[int] = pd.Timedelta(hours=24), ):
 
         # @mirae Thanks for your api proposal.
-        kwargs = {key: self.get_step(edge, self.steps, self.start_steps) for key, edge in input_edges.items()}
+        kwargs = {key: self.get_step(edge, self.assembled_steps) for key, edge in input_edges.items()}
 
         # TODO Check that it does the same as GraphNode.
         from pywatts_pipeline.core.steps.step_factory import StepFactory
@@ -320,8 +321,8 @@ class Pipeline(BaseTransformer):
                                          ],
                                     #     retrain_batch=retrain_batch,
                                          lag=lag)
+        self.add(module=step.step)
         step.step.name = name
-
         self.steps.append(step.step)
         params = self.assemble(self.steps)
         self.set_params(**params)
@@ -336,15 +337,18 @@ class Pipeline(BaseTransformer):
             from pywatts_pipeline.core.steps.step_factory import StepFactory
 
             # TODO Check that it does the same as GraphNode.__init__
+
+            # TODO add ids only for assembled_steps?
             if isinstance(node, StartStep):
-                step = StartStep(node.index)
+                step = node
             elif isinstance(node, SummaryStep):
-                inputs = {key: StepInformation(value, self) for key, value in node.input_steps.items()}
-                inputs.update({key: StepInformation(value, self)  for key, value in node.targets.items()})
+                # TODO this is not working. node.input_steps is related to self.steps and not to self.assembled_steps
+                inputs = {key: StepInformation(self.get_step(value.name, assembled_steps).step, self) for key, value in node.input_steps.items()}
+                inputs.update({key: StepInformation(self.get_step(value.name, assembled_steps).step, self)  for key, value in node.targets.items()})
                 step = StepFactory().create_summary(module=est_dict[id(node.module)], kwargs=inputs).step
             else:
-                inputs = {key: StepInformation(value, self) for key, value in node.input_steps.items()}
-                inputs.update({key: StepInformation(value, self)  for key, value in node.targets.items()})
+                inputs = {key: StepInformation(self.get_step(value.name, assembled_steps).step, self) for key, value in node.input_steps.items()}
+                inputs.update({key: StepInformation(self.get_step(value.name, assembled_steps).step, self)  for key, value in node.targets.items()})
                 step = StepFactory().create_step(module=est_dict[id(node.module)], kwargs=inputs,
                                              use_predict_proba=True if isinstance(node, ProbablisticStep) else False,
                                              use_inverse_transform=True if isinstance(node, InverseStep) else False,
@@ -356,6 +360,8 @@ class Pipeline(BaseTransformer):
                                              #retrain_batch =node.retrain_batch,
                                              lag=node.lag
                                              ).step
+            step.id = node.id
+            step.name = node.name
             assembled_steps.append(step)
         params = {
             "steps": steps,
@@ -376,9 +382,9 @@ class Pipeline(BaseTransformer):
         """
         step_id = self.step_counter
         self.step_counter += 1
-        if set_assembled:
-            self.assembled_steps.append(step)
-            step.id = step_id
+        #if set_assembled:
+        #    self.assembled_steps.append(step)
+        step.id = step_id
 
     def save(self, fm: FileManager):
         """

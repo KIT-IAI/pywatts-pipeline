@@ -93,16 +93,14 @@ class StepFactory:
                         batch_size=batch_size, refit_conditions=refit_conditions, #retrain_batch=retrain_batch,
                         lag=lag)
 
-        step_id = pipeline.add(module=step,
-                               input_ids=[step.id for step in input_steps.values()],
-                               target_ids=[step.id for step in target_steps.values()])
+        #step_id = pipeline.add(module=step)
        # step.id = step_id
 
         if len(target_steps) > 1:
             step.last = False
             for target in target_steps:
                 r_step = step.get_result_step(target)
-                r_id = pipeline.add(module=step, input_ids=[step_id])
+                #r_id = pipeline.add(module=step)
                 #r_step.id = r_id
 
         return StepInformation(step, pipeline)
@@ -133,7 +131,7 @@ class StepFactory:
         for input_step in inputs:
             input_step.step.last = False
         step = EitherOrStep({x.step.name + f"{i}": x.step for i, x in enumerate(inputs)})
-        pipeline.add(module=step, input_ids=list(map(lambda x: x.step.id, inputs)))
+        #pipeline.add(module=step, input_ids=list(map(lambda x: x.step.id, inputs)))
         return StepInformation(step, pipeline)
 
     def _check_ins(self, kwargs):
@@ -209,8 +207,6 @@ class StepFactory:
 
         step = SummaryStep(module, input_steps, pipeline.file_manager, )
 
-        step_id = pipeline.add(module=step,
-                               input_ids=[step.id for step in input_steps.values()],
-                               target_ids=[step.id for step in target_steps.values()])
+        #step_id = pipeline.add(module=step,)
 
         return SummaryInformation(step, pipeline)
