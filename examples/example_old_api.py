@@ -36,15 +36,13 @@ if __name__ == "__main__":
     )
     rmse = RMSE()
 
-    pipeline.add_new_api(calendar, "calendar", {"x": "load_power_statistics"})
-    pipeline.add_new_api(imputer_power_statistics, "imputer_power", {"x": "load_power_statistics"})
-    pipeline.add_new_api(power_scaler, "power_scaler", {"x": "imputer_power"})
-    pipeline.add_new_api(regressor_power_statistics, "regressor_power_statistics", {"cal": "calendar", "target": "power_scaler"},
-                         callbacks=[LinePlotCallback("linear_regression")], )
-    pipeline.add_new_api(power_scaler, "power_scaler_inverse", {"x": "regressor_power_statistics"}, computation_mode=ComputationMode.Transform,
+    cal = calendar(x=pipeline["load_power_statistics"])
+    imputed = imputer_power_statistics(x=pipeline["load_power_statistics"])
+    scaled = power_scaler(x=pipeline["load_power_statistics"])
+    res = regressor_power_statistics(cal=cal, target=scaled, callbacks=[LinePlotCallback("linear_regression")], )
+    inv_scaled = power_scaler(x =res, computation_mode=ComputationMode.Transform,
                          use_inverse_transform=True, callbacks=[LinePlotCallback("rescale")])
-    pipeline.add_new_api(rmse, "rmse", {"y_hat": "power_scaler_inverse", "y": "load_power_statistics"})
-
+    rmse(y_hat=inv_scaled, y=pipeline["load_power_statistics"])
 
     # Now, the pipeline is complete so we can run it and explore the results
     # Start the pipeline
@@ -54,8 +52,8 @@ if __name__ == "__main__":
                        infer_datetime_format=True,
                        sep=",")
     train = data.iloc[:6000, :]
-    assert id(rmse) != id(pipeline.assembled_steps[-1].module)
 
+    assert id(rmse) != pipeline.steps[-1]
     pipeline.train(data=train)
 
     test = data.iloc[6000:, :]

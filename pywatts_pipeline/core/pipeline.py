@@ -79,7 +79,7 @@ class Pipeline(BaseTransformer):
 
     def _transform(self, x):
         # New data are arrived. Thus no step is finished anymore.
-        for step in self.steps:
+        for step in self.assembled_steps:
             step.finished = False
 
         # Fill the start_step buffers
@@ -88,7 +88,7 @@ class Pipeline(BaseTransformer):
 
         # Get start date for the new calculation (last date of the previous one)
         start = None if len(self.result) == 0 else get_last(self.result)
-        last_steps = list(filter(lambda x: x.last and not isinstance(x, SummaryStep), self.steps))
+        last_steps = list(filter(lambda x: x.last and not isinstance(x, SummaryStep), self.assembled_steps))
         result = self._collect_results(last_steps, start)
 
         # TODO could we combine the following lines with _collect_results and _add_to_result?
@@ -210,14 +210,14 @@ class Pipeline(BaseTransformer):
              summary_formatter: SummaryFormatter, reset=False, refit=False):
 
         if reset:
-            for step in self.steps:
+            for step in self.assembled_steps:
                 self.result = {}
                 step.reset()
 
         self.current_run_setting = RunSetting(computation_mode=mode,
                                               summary_formatter=summary_formatter,
                                               return_summary=summary)
-        for step in self.steps:
+        for step in self.assembled_steps:
             step.set_run_setting(self.current_run_setting)
 
         data = self.check_input(data)
@@ -267,11 +267,6 @@ class Pipeline(BaseTransformer):
         :return: None
         """
         # TODO extend it to Miraes API
-        if input_ids is None:
-            input_ids = []
-
-        if target_ids is None:
-            target_ids = []
 
         # register modules in the pipeline
         self._register_step(module, set_assembled=False)
@@ -346,7 +341,7 @@ class Pipeline(BaseTransformer):
             elif isinstance(node, SummaryStep):
                 inputs = {key: StepInformation(value, self) for key, value in node.input_steps.items()}
                 inputs.update({key: StepInformation(value, self)  for key, value in node.targets.items()})
-                step = StepFactory().create_summary(module=est_dict[id(node.module)], kwargs=inputs)
+                step = StepFactory().create_summary(module=est_dict[id(node.module)], kwargs=inputs).step
             else:
                 inputs = {key: StepInformation(value, self) for key, value in node.input_steps.items()}
                 inputs.update({key: StepInformation(value, self)  for key, value in node.targets.items()})
@@ -360,7 +355,7 @@ class Pipeline(BaseTransformer):
                                              refit_conditions=node.refit_conditions,
                                              #retrain_batch =node.retrain_batch,
                                              lag=node.lag
-                                             )
+                                             ).step
             assembled_steps.append(step)
         params = {
             "steps": steps,
@@ -371,7 +366,7 @@ class Pipeline(BaseTransformer):
         return params
 
     def get_steps_by_ids(self, ids: List[int]):
-        return list(filter(lambda x: x.id in ids, self.steps))
+        return list(filter(lambda x: x.id in ids, self.assembled_steps))
 
     def _register_step(self, step, set_assembled=True):
         """
@@ -383,7 +378,7 @@ class Pipeline(BaseTransformer):
         self.step_counter += 1
         if set_assembled:
             self.assembled_steps.append(step)
-        step.id = step_id
+            step.id = step_id
 
     def save(self, fm: FileManager):
         """
@@ -424,7 +419,7 @@ class Pipeline(BaseTransformer):
         # 1. Iterate over steps and collect all modules -> With step_id to module_id
         #    Create for each step dict with information for restorage
         steps_for_storing = []
-        for step in self.steps:
+        for step in self.assembled_steps:
             step_json = step.get_json(save_file_manager)
             if isinstance(step, Step):
                 if step.module in modules:
@@ -492,9 +487,14 @@ class Pipeline(BaseTransformer):
         for step in json_dict["steps"]:
             step = pipeline._load_step(modules, step)
             pipeline.steps.append(step)
+            params = pipeline.assemble(pipeline.steps)
+            pipeline.assembled_steps = pipeline.steps
+            pipeline.set_params(**params)
+
+        # TODO what happens with steps and assembled steps if the pipeline is loaded?
 
         pipeline.start_steps = {element.index: (element, StepInformation(step=element, pipeline=pipeline))
-                                for element in filter(lambda x: isinstance(x, StartStep), pipeline.steps)}
+                                for element in filter(lambda x: isinstance(x, StartStep), pipeline.assembled_steps)}
 
         return pipeline
 
@@ -531,7 +531,7 @@ class Pipeline(BaseTransformer):
 
     def _create_summary(self, summary_formatter, start=None):
         summaries = []
-        for step in self.steps:
+        for step in self.assembled_steps:
             summaries.extend(step.get_summaries(start))
         return summary_formatter.create_summary(summaries, self.file_manager)
 
@@ -541,7 +541,7 @@ class Pipeline(BaseTransformer):
         :param start: The date of the first data used for retraining.
         :param end: The date of the last data used for retraining.
         """
-        for step in self.steps:
+        for step in self.assembled_steps:
             # A lag is needed, since if we have a 24 hour forecast we can evaluate the forecast not until 24 hours
             # are gone, since before not all target variables are available
             if isinstance(step, Step):
