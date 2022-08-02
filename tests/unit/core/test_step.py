@@ -29,7 +29,7 @@ class TestStep(unittest.TestCase):
         self.module_mock.fit.assert_called_once_with(**input_dict)
 
     @patch("builtins.open")
-    @patch("pywatts.core.step.cloudpickle")
+    @patch("pywatts_pipeline.core.step.cloudpickle")
     def test_store_load_of_step_with_condition(self, cloudpickle_mock, open_mock):
         condition_mock = MagicMock()
         step = Step(self.module_mock, self.step_mock, None, condition=condition_mock)
@@ -51,7 +51,7 @@ class TestStep(unittest.TestCase):
             "id": -1,
             'default_run_setting': {'computation_mode': 4},
             "refit_conditions": [],
-            "module": "pywatts.core.step",
+            "module": "pywatts_pipeline.core.step",
             "class": "Step",
             "name": "test",
             'callbacks': [],
@@ -64,7 +64,7 @@ class TestStep(unittest.TestCase):
         cloudpickle_mock.dump.assert_called_once_with(condition_mock, open_mock().__enter__.return_value)
 
     @patch("builtins.open")
-    @patch("pywatts.core.step.cloudpickle")
+    @patch("pywatts_pipeline.core.step.cloudpickle")
     def test_store_load_of_step_with_refit_conditions(self, cloudpickle_mock, open_mock):
         refit_conditions_mock = MagicMock()
         step = Step(self.module_mock, self.step_mock, None, refit_conditions=[refit_conditions_mock])
@@ -87,7 +87,7 @@ class TestStep(unittest.TestCase):
             'batch_size': None,
             'default_run_setting': {'computation_mode': 4},
             "refit_conditions": [os.path.join("folder", "test_refit_conditions.pickle")],
-            "module": "pywatts.core.step",
+            "module": "pywatts_pipeline.core.step",
             "class": "Step",
             "name": "test",
             'callbacks': [],
@@ -100,8 +100,8 @@ class TestStep(unittest.TestCase):
         cloudpickle_mock.load.assert_called_once_with(open_mock().__enter__.return_value)
         cloudpickle_mock.dump.assert_called_once_with(refit_conditions_mock, open_mock().__enter__.return_value)
 
-    @patch("pywatts.core.base_step._get_time_indexes", return_value=["time"])
-    @patch("pywatts.core.base_step.xr")
+    @patch("pywatts_pipeline.core.base_step._get_time_indexes", return_value=["time"])
+    @patch("pywatts_pipeline.core.base_step.xr")
     def test_transform_batch_with_existing_buffer(self, xr_mock, *args):
         # Check that data in batch learning are concatenated
         input_step = MagicMock()
@@ -220,7 +220,7 @@ class TestStep(unittest.TestCase):
             "input_ids": {2: 'x'},
             'default_run_setting': {'computation_mode': 3},
             "id": -1,
-            "module": "pywatts.core.step",
+            "module": "pywatts_pipeline.core.step",
             "class": "Step",
             "condition": None,
             "refit_conditions": [],
@@ -246,7 +246,7 @@ class TestStep(unittest.TestCase):
                           'id': -1,
                           'input_ids': {},
                           'last': True,
-                          'module': 'pywatts.core.step',
+                          'module': 'pywatts_pipeline.core.step',
                           'name': 'test',
                           'target_ids': {},
                           'refit_conditions': []}, json)
@@ -280,18 +280,18 @@ class TestStep(unittest.TestCase):
         assert step.finished == False
 
 
-    @patch('pywatts.core.step.Step._get_target', return_value={"target": 1})
-    @patch('pywatts.core.step.Step._get_input', return_value={"x": 2})
-    @patch('pywatts.core.step.isinstance', side_effect=[True, False, True])
+    @patch('pywatts_pipeline.core.step.Step._get_target', return_value={"target": 1})
+    @patch('pywatts_pipeline.core.step.Step._get_input', return_value={"x": 2})
+    @patch('pywatts_pipeline.core.step.isinstance', side_effect=[True, False, True])
     def test_refit_refit_conditions_false(self, isinstance_mock, get_input_mock, get_target_mock):
         step = Step(self.module_mock, {"x": self.step_mock}, file_manager=None, refit_conditions=[lambda x, y: False],
                     computation_mode=ComputationMode.Refit)
         step.refit(pd.Timestamp("2000.01.01"), pd.Timestamp("2020.01.01"))
         self.module_mock.refit.assert_not_called()
 
-    @patch('pywatts.core.step.Step._get_target', return_value={"target": 1})
-    @patch('pywatts.core.step.Step._get_input', return_value={"x": 2})
-    @patch('pywatts.core.step.isinstance', side_effect=[True, False, True])
+    @patch('pywatts_pipeline.core.step.Step._get_target', return_value={"target": 1})
+    @patch('pywatts_pipeline.core.step.Step._get_input', return_value={"x": 2})
+    @patch('pywatts_pipeline.core.step.isinstance', side_effect=[True, False, True])
     def test_refit_refit_conditions_true(self, isinstance_mock, get_input_mock, get_target_mock):
         step = Step(self.module_mock, {"x": self.step_mock},
                     targets={"target": self.step_mock}, file_manager=None, refit_conditions=[lambda x, y: True],
@@ -299,9 +299,9 @@ class TestStep(unittest.TestCase):
         step.refit(pd.Timestamp("2000.01.01"), pd.Timestamp("2020.01.01"))
         self.module_mock.refit.assert_called_once_with(x=2, target=1)
 
-    @patch('pywatts.core.step.Step._get_target', return_value={"target": 1})
-    @patch('pywatts.core.step.Step._get_input', return_value={"x": 2})
-    @patch('pywatts.core.step.isinstance', side_effect=[True, False, True, False, True])
+    @patch('pywatts_pipeline.core.step.Step._get_target', return_value={"target": 1})
+    @patch('pywatts_pipeline.core.step.Step._get_input', return_value={"x": 2})
+    @patch('pywatts_pipeline.core.step.isinstance', side_effect=[True, False, True, False, True])
     def test_multiple_refit_conditions(self, isinstance_mock, get_input_mock, get_target_mock):
         step = Step(self.module_mock, {"x": self.step_mock},
                     targets={"target": self.step_mock}, file_manager=None, refit_conditions=[lambda x, y: False, lambda x, y: True],

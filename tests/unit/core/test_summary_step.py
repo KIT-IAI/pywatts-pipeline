@@ -41,7 +41,7 @@ class TestSummaryStep(unittest.TestCase):
             "target_ids": {},
             "input_ids": {2  : "input"},
             "id": -1,
-            "module": "pywatts.core.summary_step",
+            "module": "pywatts_pipeline.core.summary_step",
             "class": "SummaryStep",
             "name": "test"}
 
@@ -59,6 +59,6 @@ class TestSummaryStep(unittest.TestCase):
             "target_ids": {},
             "input_ids": {2  : "input"},
             "id": -1,
-            "module": "pywatts.core.summary_step",
+            "module": "pywatts_pipeline.core.summary_step",
             "class": "SummaryStep",
             "name": "test"}, json)

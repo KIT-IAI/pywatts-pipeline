@@ -7,10 +7,10 @@ from typing import Dict, TYPE_CHECKING
 
 import xarray as xr
 
-from pywatts_pipeline.core.base import Base
-from pywatts_pipeline.core.filemanager import FileManager
-from pywatts_pipeline.core.step_information import SummaryInformation
-from pywatts_pipeline.core.summary_object import SummaryObject
+from pywatts_pipeline.core.transformer.base import Base
+from pywatts_pipeline.core.util.filemanager import FileManager
+from pywatts_pipeline.core.steps.step_information import SummaryInformation
+from pywatts_pipeline.core.summary.summary_object import SummaryObject
 
 if TYPE_CHECKING:
     pass

@@ -35,7 +35,7 @@ pipeline_json = {'id': 1,
                             'index': 'input',
                             'input_ids': {},
                             'last': False,
-                            'module': 'pywatts.core.start_step',
+                            'module': 'pywatts_pipeline.core.start_step',
                             'name': 'input',
                             'target_ids': {}},
                            {'batch_size': None,
@@ -46,7 +46,7 @@ pipeline_json = {'id': 1,
                             'id': 2,
                             'input_ids': {1: 'input'},
                             'last': False,
-                            'module': 'pywatts.core.step',
+                            'module': 'pywatts_pipeline.core.step',
                             'module_id': 0,
                             'name': 'StandardScaler',
                             'target_ids': {},
@@ -59,7 +59,7 @@ pipeline_json = {'id': 1,
                             'id': 3,
                             'input_ids': {2: 'x'},
                             'last': True,
-                            'module': 'pywatts.core.step',
+                            'module': 'pywatts_pipeline.core.step',
                             'module_id': 1,
                             'name': 'LinearRegression',
                             'target_ids': {},
@@ -69,7 +69,7 @@ pipeline_json = {'id': 1,
 
 class TestPipeline(unittest.TestCase):
 
-    @patch("pywatts.core.pipeline.FileManager")
+    @patch("pywatts_pipeline.core.pipeline.FileManager")
     def setUp(self, fm_mock) -> None:
         self.fm_mock = fm_mock()
         self.pipeline = Pipeline()
@@ -115,8 +115,8 @@ class TestPipeline(unittest.TestCase):
         # Three modules plus start step and one collect step
         self.assertEqual(3, len(self.pipeline.id_to_step))
 
-    @patch('pywatts.core.pipeline.FileManager')
-    @patch('pywatts.core.pipeline.json')
+    @patch('pywatts_pipeline.core.pipeline.FileManager')
+    @patch('pywatts_pipeline.core.pipeline.json')
     @patch("builtins.open", new_callable=mock_open)
     def test_to_folder(self, mock_file, json_mock, fm_mock):
         scaler = SKLearnWrapper(StandardScaler())(input=self.pipeline["input"])
@@ -142,11 +142,11 @@ class TestPipeline(unittest.TestCase):
         assert kwargs["obj"]["modules"] == pipeline_json["modules"]
         assert kwargs["obj"]["steps"] == pipeline_json["steps"]
 
-    @patch('pywatts.core.pipeline.FileManager')
+    @patch('pywatts_pipeline.core.pipeline.FileManager')
     @patch('pywatts.modules.sklearn_wrapper.cloudpickle')
-    @patch('pywatts.core.pipeline.json')
+    @patch('pywatts_pipeline.core.pipeline.json')
     @patch("builtins.open", new_callable=mock_open)
-    @patch('pywatts.core.pipeline.os.path.isdir')
+    @patch('pywatts_pipeline.core.pipeline.os.path.isdir')
     def test_from_folder(self, isdir_mock, mock_file, json_mock, pickle_mock, fm_mock):
         scaler = StandardScaler()
         linear_regression = LinearRegression()
@@ -200,8 +200,8 @@ class TestPipeline(unittest.TestCase):
             pd.DataFrame({"test": [1, 2, 2, 3, 4], "test2": [2, 2, 2, 2, 2], "target": [2, 2, 4, 4, -5]},
                          index=pd.DatetimeIndex(pd.date_range('2000-01-01', freq='24H', periods=5))))
 
-    @patch('pywatts.core.pipeline.Pipeline._create_summary')
-    @patch('pywatts.core.pipeline.FileManager')
+    @patch('pywatts_pipeline.core.pipeline.Pipeline._create_summary')
+    @patch('pywatts_pipeline.core.pipeline.FileManager')
     def test_add_pipeline_to_pipeline_and_train(self, fm_mock, create_summary_mock):
         sub_pipeline = Pipeline()
 
@@ -222,7 +222,7 @@ class TestPipeline(unittest.TestCase):
         assert 2 == create_summary_mock.call_count
         create_summary_mock.assert_has_calls([call(summary_formatter_mock, None), call(summary_formatter_mock, None)], any_order=True)
 
-    @patch('pywatts.core.pipeline.FileManager')
+    @patch('pywatts_pipeline.core.pipeline.FileManager')
     def test_add_pipeline_to_pipeline_and_test(self, fm_mock):
         # Add some steps to the pipeline
 
@@ -248,8 +248,8 @@ class TestPipeline(unittest.TestCase):
 
         # step.reset.assert_called_once()
 
-    @patch("pywatts.core.pipeline.FileManager")
-    @patch('pywatts.core.pipeline.json')
+    @patch("pywatts_pipeline.core.pipeline.FileManager")
+    @patch('pywatts_pipeline.core.pipeline.json')
     @patch("builtins.open", new_callable=mock_open)
     def test_add_pipeline_to_pipeline_and_save(self, open_mock, json_mock, fm_mock):
         sub_pipeline = Pipeline()
@@ -267,7 +267,7 @@ class TestPipeline(unittest.TestCase):
     def create_summary_in_subpipelines(self):
         assert False
 
-    @patch('pywatts.core.pipeline.FileManager')
+    @patch('pywatts_pipeline.core.pipeline.FileManager')
     def test__collect_batch_results_naming_conflict(self, fm_mock):
         step_one = MagicMock()
         step_one.name = "step"
@@ -292,7 +292,7 @@ class TestPipeline(unittest.TestCase):
         # Assert return value is correct
         self.assertEqual(merged_result, result)
 
-    @patch("pywatts.core.pipeline.FileManager")
+    @patch("pywatts_pipeline.core.pipeline.FileManager")
     def test_get_params(self, fm_mock):
         result = Pipeline(batch=pd.Timedelta("1h")).get_params()
         self.assertEqual(result, {
@@ -330,8 +330,8 @@ class TestPipeline(unittest.TestCase):
         # Assert return value is correct
         self.assertEqual(merged_result, result)
 
-    @patch("pywatts.core.pipeline.FileManager")
-    @patch("pywatts.core.pipeline.xr.concat")
+    @patch("pywatts_pipeline.core.pipeline.FileManager")
+    @patch("pywatts_pipeline.core.pipeline.xr.concat")
     def test_batched_pipeline(self, concat_mock, fm_mock):
         # Add some steps to the pipeline
 
@@ -367,8 +367,8 @@ class TestPipeline(unittest.TestCase):
         first_step.get_result.assert_has_calls(calls, any_order=True)
         self.assertEqual(concat_mock.call_count, 3)
 
-    @patch("pywatts.core.pipeline.FileManager")
-    @patch("pywatts.core.pipeline.xr.concat")
+    @patch("pywatts_pipeline.core.pipeline.FileManager")
+    @patch("pywatts_pipeline.core.pipeline.xr.concat")
     def test_batch_2H_transform(self, concat_mock, fm_mock):
         time = pd.date_range('2000-01-01', freq='1H', periods=7)
         da = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})
@@ -391,8 +391,8 @@ class TestPipeline(unittest.TestCase):
         self.assertEqual(step_one.further_elements.call_count, 5)
         self.assertEqual({"step": result_mock}, result)
 
-    @patch('pywatts.core.pipeline.FileManager')
-    @patch("pywatts.core.pipeline._get_time_indexes", return_value=["time"])
+    @patch('pywatts_pipeline.core.pipeline.FileManager')
+    @patch("pywatts_pipeline.core.pipeline._get_time_indexes", return_value=["time"])
     def test_transform_pipeline(self, get_time_indexes_mock, fm_mock):
         input_mock = MagicMock()
         input_mock.indexes = {"time": ["20.12.2020"]}
@@ -409,22 +409,22 @@ class TestPipeline(unittest.TestCase):
         get_time_indexes_mock.assert_called_once_with({"x": input_mock})
         self.assertEqual({"mock": result_mock}, result)
 
-    @patch("pywatts.core.pipeline.FileManager")
-    @patch("pywatts.core.pipeline.Pipeline.from_folder")
+    @patch("pywatts_pipeline.core.pipeline.FileManager")
+    @patch("pywatts_pipeline.core.pipeline.Pipeline.from_folder")
     def test_load(self, from_folder_mock, fm_mock):
         created_pipeline = MagicMock()
         from_folder_mock.return_value = created_pipeline
         pipeline = Pipeline.load({'name': 'Pipeline',
                                   'class': 'Pipeline',
-                                  'module': 'pywatts.core.pipeline',
+                                  'module': 'pywatts_pipeline.core.pipeline',
                                   'pipeline_path': 'save_path'})
 
         from_folder_mock.assert_called_once_with("save_path")
         self.assertEqual(created_pipeline, pipeline)
 
-    @patch("pywatts.core.pipeline.FileManager")
-    @patch("pywatts.core.pipeline.Pipeline.to_folder")
-    @patch("pywatts.core.pipeline.os")
+    @patch("pywatts_pipeline.core.pipeline.FileManager")
+    @patch("pywatts_pipeline.core.pipeline.Pipeline.to_folder")
+    @patch("pywatts_pipeline.core.pipeline.os")
     def test_save(self, os_mock, to_folder_mock, fm_mock):
         os_mock.path.join.return_value = "save_path"
         os_mock.path.isdir.return_value = False
@@ -439,12 +439,12 @@ class TestPipeline(unittest.TestCase):
         os_mock.path.join.assert_called_once_with("path_to_save", "Pipeline")
         self.assertEqual({'name': 'Pipeline',
                           'class': 'Pipeline',
-                          'module': 'pywatts.core.pipeline',
+                          'module': 'pywatts_pipeline.core.pipeline',
                           'params': {'batch': '0 days 01:00:00'},
                           'pipeline_path': 'save_path'}, result)
 
-    @patch("pywatts.core.pipeline.FileManager")
-    @patch("pywatts.core.pipeline.xr.concat")
+    @patch("pywatts_pipeline.core.pipeline.FileManager")
+    @patch("pywatts_pipeline.core.pipeline.xr.concat")
     def test_batch_1_transform(self, concat_mock, fm_mock):
         time = pd.date_range('2000-01-01', freq='1H', periods=7)
         da = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})
@@ -467,7 +467,7 @@ class TestPipeline(unittest.TestCase):
         self.assertEqual(step_one.further_elements.call_count, 8)
         self.assertEqual({"step": result_mock}, result)
 
-    @patch('pywatts.core.pipeline.FileManager')
+    @patch('pywatts_pipeline.core.pipeline.FileManager')
     def test_test(self, fm_mock):
         # Add some steps to the pipeline
 
@@ -504,7 +504,7 @@ class TestPipeline(unittest.TestCase):
         first_step.reset.assert_called_once()
         second_step.reset.assert_called_once()
 
-    @patch('pywatts.core.pipeline.FileManager')
+    @patch('pywatts_pipeline.core.pipeline.FileManager')
     def test_train(self, fmmock):
         # Add some steps to the pipeline
         time = pd.date_range('2000-01-01', freq='1H', periods=7)
@@ -543,7 +543,7 @@ class TestPipeline(unittest.TestCase):
         second_step.reset.assert_called_once()
         xr.testing.assert_equal(result["second"], da)
 
-    @patch('pywatts.core.pipeline.FileManager')
+    @patch('pywatts_pipeline.core.pipeline.FileManager')
     def test_train_return_no_summary(self, fmmock):
         # Add some steps to the pipeline
         time = pd.date_range('2000-01-01', freq='1H', periods=7)
@@ -600,7 +600,7 @@ class TestPipeline(unittest.TestCase):
 
         self.assertTrue("target" in result.keys())
 
-    @patch('pywatts.core.pipeline.isinstance', return_value=True)
+    @patch('pywatts_pipeline.core.pipeline.isinstance', return_value=True)
     def test_refit(self, isinstance_mock):
         first_step = MagicMock()
         first_step.lag = pd.Timedelta("1d")
