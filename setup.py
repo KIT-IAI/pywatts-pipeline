@@ -5,7 +5,7 @@ setuptools.setup(
     version="0.3.0",
     packages=setuptools.find_packages(),
 
-    install_requires=['cloudpickle', 'xarray>=0.19', 'numpy', 'pandas', 'tabulate'],
+    install_requires=['cloudpickle', 'distlib', 'xarray>=0.19', 'numpy', 'pandas', 'tabulate'],
     extras_require={
         'dev': [
             "pytest",

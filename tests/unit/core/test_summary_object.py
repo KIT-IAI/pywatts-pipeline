@@ -1,6 +1,6 @@
 import unittest
 
-from pywatts.core.summary_object import SummaryObjectList, SummaryCategory
+from pywatts_pipeline.core.summary.summary_object import SummaryObjectList, SummaryCategory
 
 
 class TestSummaryObjectList(unittest.TestCase):
