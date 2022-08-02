@@ -34,6 +34,7 @@ class TestProbabilisticStep(unittest.TestCase):
         self.probabilistic_step.get_result(pd.Timestamp("2000.01.01"), pd.Timestamp("2000.01.02"))
 
         self.probabilistic_module.predict_proba.assert_not_called()
+        # TODO: Timestamp is passed to _should_stop which is not subscribable in step.py:218 minimum_data[0]
         self.assertTrue(self.probabilistic_step._should_stop(pd.Timestamp("2000.01.01"), pd.Timestamp("2000.01.02")))
 
     def test_transform_no_prob_method(self):
@@ -41,6 +42,7 @@ class TestProbabilisticStep(unittest.TestCase):
         self.probabilistic_module.name = "Magic"
 
         with self.assertRaises(KindOfTransformDoesNotExistException) as context:
+            # TODO: Fails because Tuple has no attribute dims in step.py:120
             self.probabilistic_step.get_result(None, None)
         self.assertEqual(f"The module Magic has no probablisitic transform", context.exception.message)
         self.assertEqual(KindOfTransform.PROBABILISTIC_TRANSFORM, context.exception.method)
