@@ -63,7 +63,7 @@ class Step(BaseStep):
                  retrain_batch=pd.Timedelta(hours=24),
                  lag=pd.Timedelta(hours=24)):
         super().__init__(input_steps, targets, condition=condition,
-                         computation_mode=computation_mode, name=module.name)
+                         computation_mode=computation_mode, name=module.name if hasattr(module, "name") else module.__class__.__name__)
         self.file_manager = file_manager
         self.module = module
         self.retrain_batch = retrain_batch
@@ -200,7 +200,7 @@ class Step(BaseStep):
         return result_dict
 
     def _get_target(self, start, minimum_data=(0, pd.Timedelta(0))):
-        min_data_module = self.module.get_min_data()
+        min_data_module = self.module.get_min_data() if hasattr(self.module, "get_min_data") else 0
         if isinstance(min_data_module, (int, np.integer)):
             minimum_data = minimum_data[0] + min_data_module, minimum_data[1]
         else:
@@ -211,7 +211,7 @@ class Step(BaseStep):
         }
 
     def _get_input(self, start, minimum_data=(0, pd.Timedelta(0))):
-        min_data_module = self.module.get_min_data()
+        min_data_module = self.module.get_min_data() if hasattr(self.module, "get_min_data") else 0
         if isinstance(min_data_module, (int, np.integer)):
             minimum_data = minimum_data[0] + min_data_module, minimum_data[1]
         else:

@@ -305,7 +305,7 @@ class Pipeline(BaseTransformer):
                     batch_size: Optional[pd.Timedelta] = None,
                     refit_conditions: List[Union[Callable, bool]] = [],
                     lag: Optional[int] = pd.Timedelta(hours=0),
-                    retrain_batch: Optional[int] = pd.Timedelta(hours=24), ):
+                    retrain_batch: Optional[int] = pd.Timedelta(hours=24), fh=None, strategy="direct"):
 
         # @mirae Thanks for your api proposal.
         kwargs = {key: self.get_step(edge, self.steps, self.start_steps) for key, edge in input_edges.items()}
@@ -324,7 +324,7 @@ class Pipeline(BaseTransformer):
                                              refit_conditions
                                          ],
                                     #     retrain_batch=retrain_batch,
-                                         lag=lag)
+                                         lag=lag, fh=fh,strategy=strategy)
         step.step.name = name
 
         self.steps.append(step.step)
