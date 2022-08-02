@@ -288,7 +288,11 @@ class Pipeline(BaseTransformer):
         if edge not in start_steps.keys():
             start_step = StartStep(edge)
             start_steps[edge] = start_step, StepInformation(step=start_step, pipeline=self)
-            #add(module=start_step, input_ids=[], target_ids=[])
+        start_step.name = edge
+
+        self.steps.append(start_step)
+        params = self.assemble(self.steps)
+        self.set_params(**params)
         return start_steps[edge][-1]
 
 
