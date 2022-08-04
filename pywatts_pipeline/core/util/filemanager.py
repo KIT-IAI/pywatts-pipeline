@@ -3,7 +3,7 @@ import logging
 import os
 from datetime import datetime
 
-from pywatts.core.exceptions.io_exceptions import IOException
+from pywatts_pipeline.core.exceptions.io_exceptions import IOException
 
 logger = logging.getLogger()
 

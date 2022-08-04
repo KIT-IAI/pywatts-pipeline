@@ -1,7 +1,7 @@
 from typing import Dict
 
-from pywatts.core.computation_mode import ComputationMode
-from pywatts.core.summary_formatter import SummaryFormatter, SummaryMarkdown
+from pywatts_pipeline.core.util.computation_mode import ComputationMode
+from pywatts_pipeline.core.summary.summary_formatter import SummaryFormatter, SummaryMarkdown
 
 
 class RunSetting:
