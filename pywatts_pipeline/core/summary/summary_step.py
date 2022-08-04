@@ -60,11 +60,11 @@ class SummaryStep(Step):
             "name": self.name,
         }
 
-    def get_summary(self, start, end) -> SummaryObject:
+    def get_summary(self, start) -> SummaryObject:
         """
         Calculates a summary for the input data.
         :return: The summary as markdown formatted string
         :rtype: Str
         """
-        input_data = self._get_input(start, end)
+        input_data = self._get_input(start)
         return self._transform(input_data)

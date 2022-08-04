@@ -131,7 +131,7 @@ class Pipeline(BaseTransformer):
         pass
 
     def test(self, data: Union[pd.DataFrame, xr.Dataset], summary: bool = True,
-             summary_formatter: SummaryFormatter = SummaryMarkdown(), refit=False, reset=False):
+             summary_formatter: SummaryFormatter = SummaryMarkdown(), refit=False, reset=True):
         """
         Executes all modules in the pipeline in the correct order. This method call only transform on every module
         if the ComputationMode is Default. I.e. if no computationMode is specified during the addition of the module to
@@ -191,8 +191,8 @@ class Pipeline(BaseTransformer):
 
         # TODO handle callbacks
         if summary:
-            self._create_summary(summary_formatter)
-            return result, summary
+            summary_data = self._create_summary(summary_formatter)
+            return result, summary_data
 
         return result
 

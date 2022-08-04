@@ -30,9 +30,9 @@ class TestSummaryStep(unittest.TestCase):
 
     def test_get_summary(self):
         self.module_mock.get_min_data.return_value = pd.Timedelta(hours=1)
-        result = self.summary.get_summary(None, None)
+        result = self.summary.get_summary(None)
 
-        self.step_mock.get_result.assert_called_once_with(None, None, minimum_data=(0, pd.Timedelta(hours=1)))
+        self.step_mock.get_result.assert_called_once_with(None, minimum_data=(0, pd.Timedelta(hours=1)))
         self.module_mock.transform.assert_called_once_with(file_manager=self.fm_mock, input=self.result_mock)
         self.assertEqual(result, "#I AM MARKDOWN")
 
@@ -41,7 +41,7 @@ class TestSummaryStep(unittest.TestCase):
             "target_ids": {},
             "input_ids": {2  : "input"},
             "id": -1,
-            "module": "pywatts_pipeline.core.summary_step",
+            'module': 'pywatts_pipeline.core.summary.summary_step',
             "class": "SummaryStep",
             "name": "test"}
 
@@ -59,6 +59,6 @@ class TestSummaryStep(unittest.TestCase):
             "target_ids": {},
             "input_ids": {2  : "input"},
             "id": -1,
-            "module": "pywatts_pipeline.core.summary_step",
+            'module': 'pywatts_pipeline.core.summary.summary_step',
             "class": "SummaryStep",
             "name": "test"}, json)

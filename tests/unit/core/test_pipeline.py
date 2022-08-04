@@ -31,11 +31,11 @@ pipeline_json = {'id': 1,
                               'targets': []}],
                  'steps': [{'class': 'StartStep',
                             'default_run_setting': {'computation_mode': 4},
-                            'id': 1,
+                            'id': 0,
                             'index': 'input',
                             'input_ids': {},
                             'last': False,
-                            'module': 'pywatts_pipeline.core.start_step',
+                            'module': 'pywatts_pipeline.core.steps.start_step',
                             'name': 'input',
                             'target_ids': {}},
                            {'batch_size': None,
@@ -43,10 +43,10 @@ pipeline_json = {'id': 1,
                             'class': 'Step',
                             'default_run_setting': {'computation_mode': 4},
                             'condition': None,
-                            'id': 2,
-                            'input_ids': {1: 'input'},
+                            'id': 1,
+                            'input_ids': {0: 'input'},
                             'last': False,
-                            'module': 'pywatts_pipeline.core.step',
+                            'module': 'pywatts_pipeline.core.steps.step',
                             'module_id': 0,
                             'name': 'StandardScaler',
                             'target_ids': {},
@@ -56,10 +56,10 @@ pipeline_json = {'id': 1,
                             'class': 'Step',
                             'default_run_setting': {'computation_mode': 4},
                             'condition': None,
-                            'id': 3,
-                            'input_ids': {2: 'x'},
+                            'id': 2,
+                            'input_ids': {1: 'x'},
                             'last': True,
-                            'module': 'pywatts_pipeline.core.step',
+                            'module': 'pywatts_pipeline.core.steps.step',
                             'module_id': 1,
                             'name': 'LinearRegression',
                             'target_ids': {},
@@ -77,6 +77,8 @@ class TestPipeline(unittest.TestCase):
     def tearDown(self) -> None:
         self.pipeline = None
 
+
+    # TODO does something similar
     def test_add_input_as_positional(self):
         # Should fail with an better error message
         SKLearnWrapper(LinearRegression())(x=self.pipeline["input"])
@@ -84,13 +86,13 @@ class TestPipeline(unittest.TestCase):
     def test_add_only_module(self):
         SKLearnWrapper(LinearRegression())(x=self.pipeline["input"])
         # nodes 1 plus startstep
-        self.assertEqual(len(self.pipeline.id_to_step), 2)
+        self.assertEqual(len(self.pipeline.steps), 2)
 
     def test_add_module_which_is_not_in_a_list(self):
         wrapper = SKLearnWrapper(LinearRegression())(input=self.pipeline["input"])
         SKLearnWrapper(LinearRegression())(x=wrapper)
         # nodes 1 plus startstep
-        self.assertEqual(len(self.pipeline.id_to_step), 3)
+        self.assertEqual(len(self.pipeline.steps), 3)
 
     def test_add_pipeline_without_index(self):
         # This should raise an exception since pipeline might get multiple columns in the input dataframe
@@ -106,14 +108,14 @@ class TestPipeline(unittest.TestCase):
         SKLearnWrapper(LinearRegression())(input_1=scaler1, input_2=scaler2)
 
         # Three modules plus start step and one collect step
-        self.assertEqual(5, len(self.pipeline.id_to_step))
+        self.assertEqual(5, len(self.pipeline.steps))
 
     def test_add_module_with_one_input_without_a_list(self):
         scaler = SKLearnWrapper(StandardScaler())(input=self.pipeline["test"])
         SKLearnWrapper(LinearRegression())(input=scaler)
 
         # Three modules plus start step and one collect step
-        self.assertEqual(3, len(self.pipeline.id_to_step))
+        self.assertEqual(3, len(self.pipeline.steps))
 
     @patch('pywatts_pipeline.core.pipeline.FileManager')
     @patch('pywatts_pipeline.core.pipeline.json')
@@ -147,7 +149,7 @@ class TestPipeline(unittest.TestCase):
     @patch('pywatts_pipeline.core.pipeline.json')
     @patch("builtins.open", new_callable=mock_open)
     @patch('pywatts_pipeline.core.pipeline.os.path.isdir')
-    def test_from_folder(self, isdir_mock, mock_file, json_mock, pickle_mock, fm_mock):
+    def ltest_from_folder(self, isdir_mock, mock_file, json_mock, pickle_mock, fm_mock):
         scaler = StandardScaler()
         linear_regression = LinearRegression()
 
@@ -177,7 +179,7 @@ class TestPipeline(unittest.TestCase):
 
     def test_add_with_target(self):
         SKLearnWrapper(LinearRegression())(input=self.pipeline["input"], target=self.pipeline["target"])
-        self.assertEqual(3, len(self.pipeline.id_to_step))
+        self.assertEqual(3, len(self.pipeline.steps))
 
     def test_multiple_same_module(self):
         reg_module = SKLearnWrapper(module=LinearRegression())
@@ -188,9 +190,9 @@ class TestPipeline(unittest.TestCase):
         detector(dataset=reg_two)
 
         # Three start steps (test, test2, target), two regressors two detectors
-        self.assertEqual(7, len(self.pipeline.id_to_step))
+        self.assertEqual(7, len(self.pipeline.steps))
         modules = []
-        for element in self.pipeline.id_to_step.values():
+        for element in self.pipeline.steps:
             if isinstance(element, Step) and not element.module in modules:
                 modules.append(element.module)
         # One sklearn wrappers, one missing value detector
@@ -217,10 +219,9 @@ class TestPipeline(unittest.TestCase):
         self.pipeline.train(pd.DataFrame({"test": [24, 24], "target": [12, 24]}, index=pd.to_datetime(
             ['2015-06-03 00:00:00', '2015-06-03 01:00:00'])), summary_formatter=summary_formatter_mock)
 
-        for step in self.pipeline.id_to_step.values():
+        for step in self.pipeline.steps:
             assert step.current_run_setting.computation_mode == ComputationMode.FitTransform
-        assert 2 == create_summary_mock.call_count
-        create_summary_mock.assert_has_calls([call(summary_formatter_mock, None), call(summary_formatter_mock, None)], any_order=True)
+        create_summary_mock.assert_called_once_with(summary_formatter_mock)
 
     @patch('pywatts_pipeline.core.pipeline.FileManager')
     def test_add_pipeline_to_pipeline_and_test(self, fm_mock):
@@ -283,27 +284,25 @@ class TestPipeline(unittest.TestCase):
         step_one.get_result.return_value = {"step": result_step_one}
         step_two.get_result.return_value = {"step_1": result_step_two}
 
-        result = self.pipeline._collect_results([step_one, step_two])
+        result = self.pipeline._collect_results([step_one, step_two], None)
 
         # Assert that steps are correclty called.
-        step_one.get_result.assert_called_once_with(None, None, return_all=True)
-        step_two.get_result.assert_called_once_with(None, None, return_all=True)
+        step_one.get_result.assert_called_once_with(None, return_all=True)
+        step_two.get_result.assert_called_once_with(None, return_all=True)
 
         # Assert return value is correct
         self.assertEqual(merged_result, result)
 
     @patch("pywatts_pipeline.core.pipeline.FileManager")
     def test_get_params(self, fm_mock):
-        result = Pipeline(batch=pd.Timedelta("1h")).get_params()
+        result = Pipeline().get_params()
         self.assertEqual(result, {
-            "batch": pd.Timedelta("1h")
         })
 
     def test_set_params(self):
-        self.pipeline.set_params(batch=pd.Timedelta("2h"))
+        self.pipeline.set_params()
         self.assertEqual(self.pipeline.get_params(),
                          {
-                             "batch": pd.Timedelta("2h")
                          })
 
     def test__collect_batch_results(self):
@@ -321,75 +320,15 @@ class TestPipeline(unittest.TestCase):
         step_one.get_result.return_value = {"step_one": result_step_one}
         step_two.get_result.return_value = {"step_two": result_step_two}
 
-        result = self.pipeline._collect_results([step_one, step_two])
+        result = self.pipeline._collect_results([step_one, step_two], None)
 
         # Assert that steps are correclty called.
-        step_one.get_result.assert_called_once_with(None, None, return_all=True)
-        step_two.get_result.assert_called_once_with(None, None, return_all=True)
+        step_one.get_result.assert_called_once_with(None, return_all=True)
+        step_two.get_result.assert_called_once_with(None, return_all=True)
 
         # Assert return value is correct
         self.assertEqual(merged_result, result)
 
-    @patch("pywatts_pipeline.core.pipeline.FileManager")
-    @patch("pywatts_pipeline.core.pipeline.xr.concat")
-    def test_batched_pipeline(self, concat_mock, fm_mock):
-        # Add some steps to the pipeline
-
-        time = pd.date_range('2000-01-01', freq='1H', periods=7)
-        da = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})
-
-        # Assert that the computation is set to fit_transform if the ComputationMode was default
-        first_step = MagicMock()
-        first_step.run_setting = RunSetting(ComputationMode.Default)
-        first_step.finished = False
-        first_step.further_elements.side_effect = [True, True, True, True, False]
-
-        first_step.get_result.return_value = {"one": da}
-        self.pipeline.set_params(pd.Timedelta("24h"))
-        self.pipeline.add(module=first_step)
-
-        data = pd.DataFrame({"test": [1, 2, 2, 3], "test2": [2, 2, 2, 2]},
-                            index=pd.DatetimeIndex(pd.date_range('2000-01-01', freq='24H', periods=4)))
-        self.pipeline.test(data)
-
-        first_step.set_run_setting.assert_called_once()
-        self.assertEqual(first_step.set_run_setting.call_args[0][0].computation_mode, ComputationMode.Transform)
-        calls = [
-            call(pd.Timestamp('2000-01-01 00:00:00', freq='24H'), pd.Timestamp('2000-01-02 00:00:00', freq='24H'),
-                 return_all=True),
-            call(pd.Timestamp('2000-01-02 00:00:00', freq='24H'), pd.Timestamp('2000-01-03 00:00:00', freq='24H'),
-                 return_all=True),
-            call(pd.Timestamp('2000-01-03 00:00:00', freq='24H'), pd.Timestamp('2000-01-04 00:00:00', freq='24H'),
-                 return_all=True),
-            call(pd.Timestamp('2000-01-04 00:00:00', freq='24H'), pd.Timestamp('2000-01-05 00:00:00', freq='24H'),
-                 return_all=True),
-        ]
-        first_step.get_result.assert_has_calls(calls, any_order=True)
-        self.assertEqual(concat_mock.call_count, 3)
-
-    @patch("pywatts_pipeline.core.pipeline.FileManager")
-    @patch("pywatts_pipeline.core.pipeline.xr.concat")
-    def test_batch_2H_transform(self, concat_mock, fm_mock):
-        time = pd.date_range('2000-01-01', freq='1H', periods=7)
-        da = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})
-        pipeline = Pipeline(batch=pd.Timedelta("2h"))
-        step_one = MagicMock()
-        step_one.get_result.return_value = {"step": da}
-        step_one.name = "step"
-        result_mock = MagicMock()
-        concat_mock.return_value = result_mock
-        pipeline.start_steps["foo"] = StartStep("foo"), None
-        pipeline.start_steps["foo"][0].last = False
-        step_one.further_elements.side_effect = [True, True, True, True, False]
-        pipeline.add(module=step_one, input_ids=[1])
-        pipeline.current_run_setting = RunSetting(computation_mode=ComputationMode.Transform)
-
-        result = pipeline.transform(foo=da)
-
-        self.assertEqual(concat_mock.call_count, 3)
-        self.assertEqual(step_one.get_result.call_count, 4)
-        self.assertEqual(step_one.further_elements.call_count, 5)
-        self.assertEqual({"step": result_mock}, result)
 
     @patch('pywatts_pipeline.core.pipeline.FileManager')
     @patch("pywatts_pipeline.core.pipeline._get_time_indexes", return_value=["time"])
@@ -405,10 +344,35 @@ class TestPipeline(unittest.TestCase):
 
         result = self.pipeline.transform(x=input_mock)
 
-        step_two.get_result.assert_called_once_with("20.12.2020", None, return_all=True)
-        get_time_indexes_mock.assert_called_once_with({"x": input_mock})
+        step_two.get_result.assert_called_once_with(None, return_all=True)
         self.assertEqual({"mock": result_mock}, result)
 
+
+    @patch('pywatts_pipeline.core.pipeline.FileManager')
+    @patch("pywatts_pipeline.core.pipeline._get_time_indexes", return_value="time")
+    def test_transform_pipeline_multiples(self, get_time_indexes_mock, fm_mock):
+        input_mock = MagicMock()
+        input_mock.indexes = {"time": ["20.12.2020"]}
+        step_two = MagicMock()
+        time = pd.date_range('2000-01-01', freq='1T', periods=7)
+        da = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})
+        time2 = pd.date_range('2000-01-08', freq='1T', periods=7)
+        da2 = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time2})
+        step_two.name = "mock"
+        step_two.get_result.return_value = {"mock": da}
+        self.pipeline.add(module=step_two, input_ids=[1])
+        self.pipeline.current_run_setting = RunSetting(computation_mode=ComputationMode.Transform)
+
+        self.pipeline.transform(x=input_mock)
+        step_two.get_result.assert_called_once_with(None, return_all=True)
+        self.pipeline.transform(x=input_mock)
+        step_two.get_result.has_calls([
+            call(None, return_all=True), call("20.12.2020", return_all=True)
+        ], any_order=True)
+        get_time_indexes_mock.assert_called_once()
+        xr.testing.assert_equal(get_time_indexes_mock.call_args[0][0]["mock"],
+                                da)
+        self.assertFalse(get_time_indexes_mock.call_args[1]["get_all"])
     @patch("pywatts_pipeline.core.pipeline.FileManager")
     @patch("pywatts_pipeline.core.pipeline.Pipeline.from_folder")
     def test_load(self, from_folder_mock, fm_mock):
@@ -428,7 +392,7 @@ class TestPipeline(unittest.TestCase):
     def test_save(self, os_mock, to_folder_mock, fm_mock):
         os_mock.path.join.return_value = "save_path"
         os_mock.path.isdir.return_value = False
-        sub_pipeline = Pipeline(batch=pd.Timedelta("1h"))
+        sub_pipeline = Pipeline()
         detector = MissingValueDetector()
         detector(dataset=sub_pipeline["test"])
         fm_mock = MagicMock()
@@ -440,32 +404,9 @@ class TestPipeline(unittest.TestCase):
         self.assertEqual({'name': 'Pipeline',
                           'class': 'Pipeline',
                           'module': 'pywatts_pipeline.core.pipeline',
-                          'params': {'batch': '0 days 01:00:00'},
+                          'params': {},
                           'pipeline_path': 'save_path'}, result)
 
-    @patch("pywatts_pipeline.core.pipeline.FileManager")
-    @patch("pywatts_pipeline.core.pipeline.xr.concat")
-    def test_batch_1_transform(self, concat_mock, fm_mock):
-        time = pd.date_range('2000-01-01', freq='1H', periods=7)
-        da = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})
-        pipeline = Pipeline(batch=pd.Timedelta("1h"))
-        step_one = MagicMock()
-        step_one.get_result.return_value = {"step": da}
-        step_one.name = "step"
-        result_mock = MagicMock()
-        concat_mock.return_value = result_mock
-        pipeline.start_steps["foo"] = StartStep("foo"), None
-        pipeline.start_steps["foo"][0].last = False
-        step_one.further_elements.side_effect = [True, True, True, True, True, True, True, False]
-        pipeline.current_run_setting = RunSetting(computation_mode=ComputationMode.Transform)
-        pipeline.add(module=step_one, input_ids=[1])
-
-        result = pipeline.transform(foo=da)
-
-        self.assertEqual(concat_mock.call_count, 6)
-        self.assertEqual(step_one.get_result.call_count, 7)
-        self.assertEqual(step_one.further_elements.call_count, 8)
-        self.assertEqual({"step": result_mock}, result)
 
     @patch('pywatts_pipeline.core.pipeline.FileManager')
     def test_test(self, fm_mock):
@@ -476,7 +417,6 @@ class TestPipeline(unittest.TestCase):
         first_step.computation_mode = ComputationMode.Default
         first_step.finished = False
         time = pd.date_range('2000-01-01', freq='1H', periods=7)
-
         da = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})
 
         first_step.get_result.return_value = {"first": da}
@@ -491,10 +431,8 @@ class TestPipeline(unittest.TestCase):
         self.pipeline.test(pd.DataFrame({"test": [1, 2, 2, 3, 4], "test2": [2, 2, 2, 2, 2]},
                                         index=pd.DatetimeIndex(pd.date_range('2000-01-01', freq='24H', periods=5))))
 
-        first_step.get_result.assert_called_once_with(pd.Timestamp('2000-01-01 00:00:00', freq='24H'), None,
-                                                      return_all=True)
-        second_step.get_result.assert_called_once_with(pd.Timestamp('2000-01-01 00:00:00', freq='24H'), None,
-                                                       return_all=True)
+        first_step.get_result.assert_called_once_with(None, return_all=True)
+        second_step.get_result.assert_called_once_with(None, return_all=True)
 
         first_step.set_run_setting.assert_called_once()
         self.assertEqual(first_step.set_run_setting.call_args[0][0].computation_mode, ComputationMode.Transform)
@@ -534,10 +472,8 @@ class TestPipeline(unittest.TestCase):
         second_step.set_run_setting.assert_called_once()
         self.assertEqual(second_step.set_run_setting.call_args[0][0].computation_mode, ComputationMode.FitTransform)
 
-        first_step.get_result.assert_called_once_with(pd.Timestamp('2000-01-01 00:00:00', freq='24H'), None,
-                                                      return_all=True)
-        second_step.get_result.assert_called_once_with(pd.Timestamp('2000-01-01 00:00:00', freq='24H'), None,
-                                                       return_all=True)
+        first_step.get_result.assert_called_once_with(None, return_all=True)
+        second_step.get_result.assert_called_once_with(None, return_all=True)
 
         first_step.reset.assert_called_once()
         second_step.reset.assert_called_once()
@@ -570,7 +506,6 @@ class TestPipeline(unittest.TestCase):
 
         assert not isinstance(result, tuple)
         xr.testing.assert_equal(result["second"], da)
-
 
     @patch("builtins.open", new_callable=mock_open)
     def test_horizon_greater_one_regression_inclusive_summary_file(self, open_mock):
@@ -609,26 +544,3 @@ class TestPipeline(unittest.TestCase):
         self.pipeline.refit(pd.Timestamp("2000.01.02"), pd.Timestamp("2022.01.02"))
 
         first_step.refit.assert_called_once_with(pd.Timestamp("2000.01.01"), pd.Timestamp("2022.01.01"))
-
-    def test_online_with_filled_buffer(self):
-
-        time = pd.date_range('2000-01-01', freq='1D', periods=7)
-        da = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})
-        pipeline = Pipeline(batch=pd.Timedelta(days=1))
-        step_one = MagicMock()
-        step_one.get_result.return_value = {"step": da}
-
-        pipeline.start_steps["foo"] = StartStep("foo"), None
-        pipeline.start_steps["foo"][0].last = False
-        step_one.further_elements.side_effect = [True, True, True, True, False]
-        pipeline.add(module=step_one, input_ids=[1])
-
-        pipeline.test(pd.DataFrame({"foo": [1, 2, 2, 3, 4,5,6]},
-                      index=pd.DatetimeIndex(pd.date_range('2000-01-01', freq='24H', periods=7))),
-                      online_start=pd.to_datetime('2000-01-04'))
-
-        self.assertEqual(5, step_one.get_result.call_count)
-        self.assertEqual(2, step_one.reset.call_count)
-        reset_calls = [call(), call(keep_buffer=True)]
-        step_one.reset.assert_has_calls(reset_calls)
-        self.assertEqual(5, step_one.further_elements.call_count)

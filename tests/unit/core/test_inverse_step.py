@@ -46,7 +46,7 @@ class TestInverseTransform(unittest.TestCase):
 
         self.inverse_module.inverse_transform.assert_not_called()
         # TODO: None is passed as minimum_data which causes an error at step.py:218
-        self.assertTrue(self.inverse_step._should_stop(None, None))
+        self.assertTrue(self.inverse_step._should_stop(None, (0, pd.Timedelta("1h"))))
 
     def test_transform_no_inverse_method(self):
         self.inverse_module.has_inverse_transform = False

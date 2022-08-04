@@ -109,6 +109,8 @@ class TestStep(unittest.TestCase):
         time = pd.date_range('2000-01-01', freq='1D', periods=7)
         time2 = pd.date_range('2000-01-14', freq='1D', periods=7)
         time3 = pd.date_range('2000-01-01', freq='1D', periods=14)
+        input_step.get_result.return_value = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"],
+                                                               coords={'time': time2})
 
         self.module_mock.transform.return_value = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"],
                                                                coords={'time': time2})
@@ -120,13 +122,13 @@ class TestStep(unittest.TestCase):
                                                    coords={'time': time3})
 
         # TODO: I think get results awaits list of time indexes?
-        step.get_result(pd.Timestamp("2000.01.07"), pd.Timestamp("2020.01.14"))
+        step.get_result(pd.Timestamp("2000.01.07"))
 
         # Two calls, once in should_stop and once in _transform
         input_step.get_result.assert_has_calls(
-            [call(pd.Timestamp('2000-01-07 00:00:00'), pd.Timestamp('2020-01-14 00:00:00'),
+            [call(pd.Timestamp('2000-01-07 00:00:00'),
                   minimum_data=(2, pd.Timedelta(0))),
-             call(pd.Timestamp('2000-01-07 00:00:00'), pd.Timestamp('2020-01-14 00:00:00'),
+             call(pd.Timestamp('2000-01-07 00:00:00'),
                   minimum_data=(2, pd.Timedelta(0)))])
         xr_mock.concat.assert_called_once()
 
@@ -135,13 +137,12 @@ class TestStep(unittest.TestCase):
                                              coords={'time': time2}), list(xr_mock.concat.call_args_list[0])[0][0][1])
         assert {'dim': 'time'} == list(xr_mock.concat.call_args_list[0])[1]
 
-    def test_get_result_recalculate(self):
-        pass
-
     def test_get_result(self):
         input_step = MagicMock()
-        input_step_result_mock = MagicMock()
-        input_step.get_result.return_value = input_step_result_mock
+
+        time = pd.date_range('2000-01-01', freq='1H', periods=7)
+        da = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})
+        input_step.get_result.return_value = da
         input_step._should_stop.return_value = False
 
         time = pd.date_range('2000-01-01', freq='1H', periods=7)
@@ -149,18 +150,16 @@ class TestStep(unittest.TestCase):
                                                                coords={'time': time})
         step = Step(self.module_mock, {"x": input_step}, file_manager=MagicMock())
         # TODO: I think get results awaits list of time indexes?
-        step.get_result(pd.Timestamp("2000.01.01"), pd.Timestamp("2020.12.12"))
+        step.get_result(pd.Timestamp("2000.01.01"), )
 
         # Two calls, once in should_stop and once in _transform
         input_step.get_result.assert_has_calls(
-            [call(pd.Timestamp("2000-01-01"), pd.Timestamp('2020-12-12 '),
-                  minimum_data=(0, self.module_mock.get_min_data().__radd__()),
-                  use_result_buffer=False),
-             call(pd.Timestamp('2000-01-01 '), pd.Timestamp('2020-12-12 '),
-                  minimum_data=(0, self.module_mock.get_min_data().__radd__()))],
-                  use_result_buffer=False)
+            [call(pd.Timestamp("2000-01-01"),
+                  minimum_data=(0, self.module_mock.get_min_data().__radd__())),
+             call(pd.Timestamp('2000-01-01 '),
+                  minimum_data=(0, self.module_mock.get_min_data().__radd__()))])
 
-        self.module_mock.transform.assert_called_once_with(x=input_step_result_mock)
+        xr.testing.assert_equal(da, self.module_mock.transform.call_args[1]["x"])
 
     def test_further_elements_input_false(self):
         input_step = MagicMock()
@@ -209,12 +208,16 @@ class TestStep(unittest.TestCase):
         self.module_mock.fit.assert_called_once_with(**input_dict, target=target_mock)
 
     def test_transform(self):
-        input_dict = {'input_data': None}
+        time = pd.date_range('2000-01-01', freq='1H', periods=7)
+        da = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})
+        input_dict = {'input_data': da}
         step = Step(self.module_mock, {"x": self.step_mock}, None)
         step._fit(input_dict, {})
-        # TODO input_dict has no attribute dims
         step._transform(input_dict)
-        self.module_mock.transform.assert_called_once_with(**input_dict)
+        xr.testing.assert_equal(
+            self.module_mock.transform.call_args[1]["input_data"],
+            da
+        )
 
     def test_load(self):
         step_config = {
@@ -280,9 +283,8 @@ class TestStep(unittest.TestCase):
         self.assertIsNone(None)
         assert step.current_run_setting.computation_mode == ComputationMode.Default
         # TODO: None type does not support index access
-        assert step._should_stop(None, None) == False
+        assert step._should_stop(None, (0, pd.Timedelta("0h"))) == False
         assert step.finished == False
-
 
     @patch('pywatts_pipeline.core.steps.step.Step._get_target', return_value={"target": 1})
     @patch('pywatts_pipeline.core.steps.step.Step._get_input', return_value={"x": 2})
@@ -290,26 +292,52 @@ class TestStep(unittest.TestCase):
     def test_refit_refit_conditions_false(self, isinstance_mock, get_input_mock, get_target_mock):
         step = Step(self.module_mock, {"x": self.step_mock}, file_manager=None, refit_conditions=[lambda x, y: False],
                     computation_mode=ComputationMode.Refit)
-        # TODO: Timestamp has no attribute dims
         step.refit(pd.Timestamp("2000.01.01"), pd.Timestamp("2020.01.01"))
         self.module_mock.refit.assert_not_called()
 
-    @patch('pywatts_pipeline.core.steps.step.Step._get_target', return_value={"target": 1})
-    @patch('pywatts_pipeline.core.steps.step.Step._get_input', return_value={"x": 2})
+    @patch('pywatts_pipeline.core.steps.step.Step._get_target')
+    @patch('pywatts_pipeline.core.steps.step.Step._get_input')
     @patch('pywatts_pipeline.core.steps.step.isinstance', side_effect=[True, False, True])
     def test_refit_refit_conditions_true(self, isinstance_mock, get_input_mock, get_target_mock):
         step = Step(self.module_mock, {"x": self.step_mock},
                     targets={"target": self.step_mock}, file_manager=None, refit_conditions=[lambda x, y: True],
                     computation_mode=ComputationMode.Refit)
-        step.refit(pd.Timestamp("2000.01.01"), pd.Timestamp("2020.01.01"))
-        self.module_mock.refit.assert_called_once_with(x=2, target=1)
 
-    @patch('pywatts_pipeline.core.steps.step.Step._get_target', return_value={"target": 1})
-    @patch('pywatts_pipeline.core.steps.step.Step._get_input', return_value={"x": 2})
+        time = pd.date_range('2000-01-01', freq='1H', periods=7)
+        da = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})
+        get_input_mock.return_value = {"x": da}
+        get_target_mock.return_value = {"target": da}
+
+        step.refit(pd.Timestamp("2000.01.01"), pd.Timestamp("2020.01.01"))
+
+        xr.testing.assert_equal(
+            self.module_mock.refit.call_args[1]["x"],
+            da
+        )
+        xr.testing.assert_equal(
+            self.module_mock.refit.call_args[1]["target"],
+            da
+        )
+
+    @patch('pywatts_pipeline.core.steps.step.Step._get_target',)
+    @patch('pywatts_pipeline.core.steps.step.Step._get_input', )
     @patch('pywatts_pipeline.core.steps.step.isinstance', side_effect=[True, False, True, False, True])
     def test_multiple_refit_conditions(self, isinstance_mock, get_input_mock, get_target_mock):
         step = Step(self.module_mock, {"x": self.step_mock},
-                    targets={"target": self.step_mock}, file_manager=None, refit_conditions=[lambda x, y: False, lambda x, y: True],
+                    targets={"target": self.step_mock}, file_manager=None,
+                    refit_conditions=[lambda x, y: False, lambda x, y: True],
                     computation_mode=ComputationMode.Refit)
+        time = pd.date_range('2000-01-01', freq='1H', periods=7)
+        da = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})
+        get_input_mock.return_value = {"x": da}
+        get_target_mock.return_value = {"target": da}
+
         step.refit(pd.Timestamp("2000.01.01"), pd.Timestamp("2020.01.01"))
-        self.module_mock.refit.assert_called_once_with(x=2, target=1)
+        xr.testing.assert_equal(
+            self.module_mock.refit.call_args[1]["x"],
+            da
+        )
+        xr.testing.assert_equal(
+            self.module_mock.refit.call_args[1]["target"],
+            da
+        )

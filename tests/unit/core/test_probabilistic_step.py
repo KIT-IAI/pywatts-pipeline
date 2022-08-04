@@ -5,7 +5,7 @@ from pywatts_pipeline.core.exceptions.kind_of_transform_does_not_exist_exception
     KindOfTransformDoesNotExistException, KindOfTransform
 from pywatts_pipeline.core.steps.probabilistic_step import ProbablisticStep
 import pandas as pd
-
+import xarray as xr
 
 class TestProbabilisticStep(unittest.TestCase):
 
@@ -31,15 +31,18 @@ class TestProbabilisticStep(unittest.TestCase):
     def test_get_result_stop(self):
         self.input_step.get_result.return_value = None
 
-        self.probabilistic_step.get_result(pd.Timestamp("2000.01.01"), pd.Timestamp("2000.01.02"))
+        self.probabilistic_step.get_result(pd.Timestamp("2000.01.01"))
 
         self.probabilistic_module.predict_proba.assert_not_called()
         # TODO: Timestamp is passed to _should_stop which is not subscribable in step.py:218 minimum_data[0]
-        self.assertTrue(self.probabilistic_step._should_stop(pd.Timestamp("2000.01.01"), pd.Timestamp("2000.01.02")))
+        self.assertTrue(self.probabilistic_step._should_stop(pd.Timestamp("2000.01.01"), minimum_data=(0, pd.Timedelta("0h"))))
 
     def test_transform_no_prob_method(self):
         self.probabilistic_module.has_predict_proba = False
         self.probabilistic_module.name = "Magic"
+        time = pd.date_range('2000-01-01', freq='1H', periods=7)
+        da = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})
+        self.input_step.get_result.return_value = da
 
         with self.assertRaises(KindOfTransformDoesNotExistException) as context:
             # TODO: Fails because Tuple has no attribute dims in step.py:120

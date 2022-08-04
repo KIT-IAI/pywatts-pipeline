@@ -39,7 +39,7 @@ class PipelineStep(Step):
         :type computation_mode: ComputationMode
         """
         self.current_run_setting = self.default_run_setting.update(run_setting=run_setting)
-        for step in self.module.id_to_step.values():
+        for step in self.module.steps:
             step.set_run_setting(run_setting)
         self.module.current_run_setting = self.current_run_setting
 
@@ -50,7 +50,7 @@ class PipelineStep(Step):
         """
         super().reset(keep_buffer=keep_buffer)
         self.module.result = {}
-        for step in self.module.id_to_step.values():
+        for step in self.module.steps:
             step.reset(keep_buffer=keep_buffer)
 
     def refit(self, start: pd.Timestamp, end: pd.Timestamp):
