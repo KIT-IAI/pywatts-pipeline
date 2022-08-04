@@ -38,7 +38,7 @@ if __name__ == "__main__":
 
     cal = calendar(x=pipeline["load_power_statistics"])
     imputed = imputer_power_statistics(x=pipeline["load_power_statistics"])
-    scaled = power_scaler(x=pipeline["load_power_statistics"])
+    scaled = power_scaler(x=imputed)
     res = regressor_power_statistics(cal=cal, target=scaled, callbacks=[LinePlotCallback("linear_regression")], )
     inv_scaled = power_scaler(x =res, computation_mode=ComputationMode.Transform,
                          use_inverse_transform=True, callbacks=[LinePlotCallback("rescale")])
@@ -53,7 +53,7 @@ if __name__ == "__main__":
                        sep=",")
     train = data.iloc[:6000, :]
 
-    assert id(rmse) != pipeline.steps[-1]
+    assert id(rmse) != id(pipeline.assembled_steps[-1].module)
     pipeline.train(data=train)
 
     test = data.iloc[6000:, :]

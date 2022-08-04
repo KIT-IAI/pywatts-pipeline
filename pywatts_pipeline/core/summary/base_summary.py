@@ -96,4 +96,7 @@ class BaseSummary(Base, ABC):
 
         from pywatts_pipeline.core.steps.step_factory import StepFactory
 
-        return StepFactory().create_summary(self, kwargs)
+        step_info =  StepFactory().create_summary(self, kwargs)
+
+        step_info.pipeline.add(step=step_info.step, name=step_info.step.name)
+        return step_info

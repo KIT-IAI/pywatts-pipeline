@@ -39,6 +39,12 @@ logger.setLevel(logging.DEBUG)
 logging.getLogger('matplotlib').setLevel(logging.WARN)
 
 
+# TODO
+#  * Enable both APIs.
+#  * Try to built a polymorphic step
+#  * Extract the output handling into a StepOutput class or GraphOutput class
+
+
 class Pipeline(BaseTransformer):
     """
     The pipeline class is the central class of pyWATTS. It is responsible for
@@ -53,10 +59,8 @@ class Pipeline(BaseTransformer):
     def __init__(self, path: Optional[str] = ".", name="Pipeline"):
         # TODO integrate Miraes API
         super().__init__(name)
+        self.steps = []
         self.assembled_steps = []
-        self.result = {}
-        self.start_steps = dict()
-        self.steps: List[BaseStep] = []
         self.step_counter = 0
         if path is None:
             self.file_manager = None
@@ -77,19 +81,25 @@ class Pipeline(BaseTransformer):
         """
         return self._transform(x)
 
+
+    def _get_start_steps(self) -> List[StartStep]:
+        return list(filter(lambda x: isinstance(x, StartStep), self.assembled_steps))
+
+    def _get_last_steps(self) -> List[BaseStep]:
+        return list(filter(lambda x: x.last and not isinstance(x, SummaryStep), self.assembled_steps))
+
     def _transform(self, x):
         # New data are arrived. Thus no step is finished anymore.
         for step in self.assembled_steps:
             step.finished = False
 
         # Fill the start_step buffers
-        for key, (start_step, _) in self.start_steps.items():
-            start_step.update_buffer(x[key].copy())
+        for start_step in self._get_start_steps():
+            start_step.update_buffer(x[start_step.index].copy())
 
         # Get start date for the new calculation (last date of the previous one)
         start = None if len(self.result) == 0 else get_last(self.result)
-        last_steps = list(filter(lambda x: x.last and not isinstance(x, SummaryStep), self.assembled_steps))
-        result = self._collect_results(last_steps, start)
+        result = self._collect_results(self._get_last_steps(), start)
 
         # TODO could we combine the following lines with _collect_results and _add_to_result?
         # Store result in self.result.
@@ -148,7 +158,6 @@ class Pipeline(BaseTransformer):
         """
         for parameter, value in kwargs.items():
             if parameter == "assembled_step":
-                # TODO hacky use ids only in assembling..
                 self.step_counter = 0
                 for step in parameter:
                     self.assembled_steps.append(step)
@@ -256,7 +265,10 @@ class Pipeline(BaseTransformer):
                 self.name)
         return data
 
-    def add(self, *, step: Union[BaseStep], name):
+    def add(self, *,
+            module: Union[BaseStep],
+            input_ids: List[int] = None,
+            target_ids: List[int] = None):
         """
         Add a new module with all of it's inputs to the pipeline.
 
@@ -265,12 +277,10 @@ class Pipeline(BaseTransformer):
         :param input_ids: A list of modules, whose input is needed for this steps
         :return: None
         """
-        step.name = name
-        self.steps.append(step)
-        params = self.assemble(self.steps)
-        self.set_params(**params)
+        # TODO extend it to Miraes API
+
         # register modules in the pipeline
-        self._register_step(step)
+        self._register_step(module, set_assembled=False)
 
         #logger.info(
          #   f"Add {self.steps[-1]} to the pipeline. Inputs are {[step for step in self.get_steps_by_ids(input_ids)]}"
@@ -281,11 +291,12 @@ class Pipeline(BaseTransformer):
         for step in steps:
             if step.name == edge:
                 return StepInformation(step=step, pipeline=self)
-        if edge not in self.start_steps.keys():
+        if edge not in map(lambda x: x.index, self._get_start_steps()):
             start_step = StartStep(edge)
-            self.start_steps[edge] = start_step, StepInformation(step=start_step, pipeline=self)
-            self.add(step=start_step, name=edge)
-            return self.start_steps[edge][-1]
+            self.steps.append(start_step)
+            params = self.assemble(self.steps)
+            self.set_params(**params)
+            return StepInformation(step=start_step, pipeline=self)
 
 
 
@@ -317,8 +328,10 @@ class Pipeline(BaseTransformer):
                                          ],
                                     #     retrain_batch=retrain_batch,
                                          lag=lag)
-        self.add(step=step.step, name=name)
-
+        step.step.name = name
+        self.steps.append(step.step)
+        params = self.assemble(self.steps)
+        self.set_params(**params)
 
     def assemble(self, steps: list, outputs=None):
         estimators = [node.module for node in filter(lambda x: isinstance(x, Step), steps)]
@@ -326,23 +339,24 @@ class Pipeline(BaseTransformer):
         for est in estimators:
             est_dict[id(est)] = deepcopy(est)
         assembled_steps = []
+
+        self.counter = 0
         for node in steps:
             from pywatts_pipeline.core.steps.step_factory import StepFactory
 
             # TODO Check that it does the same as GraphNode.__init__
+            inputs = {key: StepInformation(self.get_step(value.name, assembled_steps).step, self) for key, value in
+                      node.input_steps.items()}
+            inputs.update({key: StepInformation(self.get_step(value.name, assembled_steps).step, self) for key, value in
+                           node.targets.items()})
 
-            # TODO add ids only for assembled_steps?
+            # TODO can we do this more intelligent? E.g. by introducing something like a polymorphic step
+            #  and dynamic inheritance
             if isinstance(node, StartStep):
                 step = node
             elif isinstance(node, SummaryStep):
-                # TODO this is not working for old api currently, since we do not prove that the names are unique...
-                # TODO this is not working. node.input_steps is related to self.steps and not to self.assembled_steps
-                inputs = {key: StepInformation(self.get_step(value.name, assembled_steps).step, self) for key, value in node.input_steps.items()}
-                inputs.update({key: StepInformation(self.get_step(value.name, assembled_steps).step, self)  for key, value in node.targets.items()})
                 step = StepFactory().create_summary(module=est_dict[id(node.module)], kwargs=inputs).step
             else:
-                inputs = {key: StepInformation(self.get_step(value.name, assembled_steps).step, self) for key, value in node.input_steps.items()}
-                inputs.update({key: StepInformation(self.get_step(value.name, assembled_steps).step, self)  for key, value in node.targets.items()})
                 step = StepFactory().create_step(module=est_dict[id(node.module)], kwargs=inputs,
                                              use_predict_proba=True if isinstance(node, ProbablisticStep) else False,
                                              use_inverse_transform=True if isinstance(node, InverseStep) else False,
@@ -354,7 +368,7 @@ class Pipeline(BaseTransformer):
                                              #retrain_batch =node.retrain_batch,
                                              lag=node.lag
                                              ).step
-            step.id = node.id
+            self._register_step(step)
             step.name = node.name
             assembled_steps.append(step)
         params = {
@@ -368,7 +382,7 @@ class Pipeline(BaseTransformer):
     def get_steps_by_ids(self, ids: List[int]):
         return list(filter(lambda x: x.id in ids, self.assembled_steps))
 
-    def _register_step(self, step):
+    def _register_step(self, step, set_assembled=True):
         """
         Registers the step in the pipeline.
 
@@ -376,6 +390,8 @@ class Pipeline(BaseTransformer):
         """
         step_id = self.step_counter
         self.step_counter += 1
+        #if set_assembled:
+        #    self.assembled_steps.append(step)
         step.id = step_id
 
     def save(self, fm: FileManager):
@@ -524,7 +540,7 @@ class Pipeline(BaseTransformer):
         if item not in self.start_steps.keys():
             start_step = StartStep(item)
             self.start_steps[item] = start_step, StepInformation(step=start_step, pipeline=self)
-            self.add(step=start_step, name=item)
+            self.add(module=start_step, input_ids=[], target_ids=[])
         return self.start_steps[item][-1]
 
     def _create_summary(self, summary_formatter, start=None):

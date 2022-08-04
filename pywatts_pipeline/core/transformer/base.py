@@ -193,7 +193,7 @@ class Base(ABC):
 
         from pywatts_pipeline.core.steps.step_factory import StepFactory
 
-        return StepFactory().create_step(self, kwargs=kwargs,
+        step_info = StepFactory().create_step(self, kwargs=kwargs,
                                          use_inverse_transform=use_inverse_transform,
                                          use_predict_proba=use_prob_transform,
                                          condition=condition,
@@ -205,6 +205,11 @@ class Base(ABC):
                                     #     retrain_batch=retrain_batch,
                                          lag=lag
                                          )
+        # TODO hacky has to be solved
+        name = step_info.step.name + f"{len(step_info.pipeline.steps)}" if step_info.step.name in map(lambda x: x.name, step_info.pipeline.steps) else step_info.step.name
+        step_info.step.name = name
+        step_info.pipeline.add(step=step_info.step, name=name)
+        return step_info
 
 
 class BaseTransformer(Base, ABC):
