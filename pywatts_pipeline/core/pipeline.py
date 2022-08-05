@@ -191,7 +191,7 @@ class Pipeline(BaseTransformer):
 
         # TODO handle callbacks
         if summary:
-            summary_data = self._create_summary(summary_formatter)
+            summary_data = self.create_summary(summary_formatter)
             return result, summary_data
 
         return result
@@ -401,11 +401,16 @@ class Pipeline(BaseTransformer):
             self.add(module=start_step, input_ids=[], target_ids=[])
         return self.start_steps[item][-1]
 
-    def _create_summary(self, summary_formatter, start=None):
+    def create_summary(self, summary_formatter=SummaryMarkdown(), start=None):
+        summaries = self._get_summaries(start)
+        return summary_formatter.create_summary(summaries, self.file_manager)
+
+    def _get_summaries(self, start):
         summaries = []
         for step in self.steps:
+            step._callbacks()
             summaries.extend(step.get_summaries(start))
-        return summary_formatter.create_summary(summaries, self.file_manager)
+        return summaries
 
     def refit(self, start, end):
         """

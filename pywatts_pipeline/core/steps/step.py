@@ -85,20 +85,9 @@ class Step(BaseStep):
     def _callbacks(self):
         # plots and writs the data if the step is finished.
         for callback in self.callbacks:
-            dim = _get_time_indexes(self.buffer)[0]
-
-            if self.current_run_setting.online_start is not None:
-                to_plot = {k: self.buffer[k][self.buffer[k][dim] >= self.current_run_setting.online_start] for k in
-                           self.buffer.keys()}
-            else:
-                to_plot = self.buffer
             if isinstance(callback, BaseCallback):
                 callback.set_filemanager(self.file_manager)
-            if isinstance(self.buffer, xr.DataArray) or isinstance(self.buffer, xr.Dataset):
-                # DEPRECATED: direct DataArray or Dataset passing is depricated
-                callback({"deprecated": self.buffer})
-            else:
-                callback(to_plot)
+            callback(self.buffer)
 
     def _transform(self, input_step):
         if isinstance(self.module, BaseEstimator) and not self.module.is_fitted:
