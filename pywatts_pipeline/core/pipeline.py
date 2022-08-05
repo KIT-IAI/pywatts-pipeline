@@ -481,6 +481,7 @@ class Pipeline(BaseTransformer):
     def _get_summaries(self, start):
         summaries = []
         for step in filter(lambda x: isinstance(x, Step), self.steps):
+            step._callbacks()
             summaries.extend(step.get_summaries(start))
         return summaries
 

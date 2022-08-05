@@ -61,8 +61,8 @@ class PipelineStep(Step):
         for step in self.module.steps:
             step.reset(keep_buffer=keep_buffer)
 
-    def refit(self, start: pd.Timestamp):
-        self.module.refit(start)
+    def refit(self, start: pd.Timestamp, end: pd.Timestamp):
+        self.module.refit(start, end)
 
     def get_summaries(self, start):
         summaries = [self.transform_time, self.training_time]
