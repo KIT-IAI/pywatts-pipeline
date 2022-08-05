@@ -129,8 +129,11 @@ class BaseStep(ABC):
                     **{time_index[0]: index[(index >= start)]})
         else:
             self.finished = True
-            if buffer_element is not None:
+            # TODO Problem if subpipeline only provides results for some steps... (Not enough data for all)
+            if buffer_element is not None and buffer_element in self.buffer.keys():
                 return self.buffer[buffer_element].copy()
+            elif buffer_element is not None:
+                return None
             elif return_all:
                 return copy.deepcopy(self.buffer)
             else:
