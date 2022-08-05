@@ -13,7 +13,7 @@ from pywatts_pipeline.utils._xarray_time_series_utils import _get_time_indexes, 
 from pywatts_pipeline.core.summary.summary_object import (
     SummaryObjectList,
     SummaryCategory,
-    SummaryObject
+    SummaryObject,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,17 +42,17 @@ class BaseStep(ABC):
     ):
         self.default_run_setting = RunSetting(computation_mode=computation_mode)
         self.current_run_setting = self.default_run_setting.clone()
-        self.input_steps: Dict[str, "BaseStep"] = ({} if input_steps is None else input_steps)
-        self.targets: Dict[str, "BaseStep"] = {} if targets is None else targets
+        self.input_steps: Dict[str, "BaseStep"] = dict() if input_steps is None else input_steps
+        self.condition = condition
+
         self.name = name
         self.id = -1
         self.last = True
         self.buffer: Dict[str, xr.DataArray] = {}
 
     @abstractmethod
-    def get_result(
-        self, start: pd.Timestamp, return_all=False, minimum_data=(0, pd.Timedelta(0))
-    ):
+    def get_result(self, start: pd.Timestamp,
+                   return_all=False, minimum_data=(0, pd.Timedelta(0))):
         """
         This method is responsible for providing the result of this step.
         Therefore,
@@ -97,7 +97,8 @@ class BaseStep(ABC):
             return copy.deepcopy(self.buffer)
         return list(self.buffer.values())[0].copy()
 
-    def update_buffer(self, x: xr.DataArray, index):
+
+    def update_buffer(self, x:xr.DataArray, index):
         if len(x) == 0:
             pass
         elif index not in self.buffer:
@@ -125,7 +126,6 @@ class BaseStep(ABC):
         :rtype: Dict
         """
         return {
-            "target_ids": {step.id: key for key, step in self.targets.items()},
             "input_ids": {step.id: key for key, step in self.input_steps.items()},
             "id": self.id,
             "module": self.__module__,
@@ -154,10 +154,7 @@ class BaseStep(ABC):
 
     def _should_stop(self, start, minimum_data) -> bool:
         # Fetch input and target data
-        input_result = self._get_inputs(
-            self.input_steps, start, minimum_data=minimum_data
-        )
-        target_result = self._get_inputs(self.targets, start, minimum_data=minimum_data)
+        input_result = self._get_inputs(self.input_steps, start, minimum_data=minimum_data)
 
         # Check if either the condition is True or some of the previous steps stopped (return_value is None)
         return (

@@ -1,3 +1,4 @@
+import inspect
 import logging
 import time
 import warnings
@@ -6,7 +7,9 @@ from typing import Optional, Dict, Union, Callable, List
 import cloudpickle
 import numpy as np
 import pandas as pd
+import sktime.base
 import xarray as xr
+from sktime.forecasting.base import ForecastingHorizon
 
 from pywatts_pipeline.core.callbacks import BaseCallback
 from pywatts_pipeline.core.condition.base_condition import BaseCondition
@@ -18,6 +21,8 @@ from pywatts_pipeline.core.util.computation_mode import ComputationMode
 from pywatts_pipeline.core.util.filemanager import FileManager
 from pywatts_pipeline.core.util.run_setting import RunSetting
 from pywatts_pipeline.utils._xarray_time_series_utils import _get_time_indexes
+from pywatts_pipeline.core.util.run_setting import RunSetting
+from pywatts_pipeline.utils._xarray_time_series_utils import _get_time_indexes, numpy_to_xarray
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +62,6 @@ class Step(BaseStep):
                  input_steps: Dict[str, BaseStep],
                  file_manager,
                  *,
-                 targets: Optional[Dict[str, "BaseStep"]] = None,
                  method=None,
                  computation_mode=ComputationMode.Default,
                  callbacks: List[
@@ -72,7 +76,7 @@ class Step(BaseStep):
             targets,
             condition=condition,
             computation_mode=computation_mode,
-            name=module.name,
+            name=module.name if hasattr(module, "name") else module.__class__.__name__,
         )
         self.method = method
         self.file_manager = file_manager
@@ -116,10 +120,15 @@ class Step(BaseStep):
         self._compute(start, minimum_data)
         return self._pack_data(start, return_all=return_all, minimum_data=minimum_data)
 
-    def _fit(self, inputs: Dict[str, BaseStep], target_step):
+    def _fit(self, inputs: Dict[str, BaseStep]):
         # Fit the encapsulate module, if the input and the target is not stopped.
+        inps = dict(filter(lambda x: x[0] in inspect.signature(self.module.fit).parameters.keys(), inputs.items())) if "kwargs" not in inspect.signature(self.module.fit).parameters.keys()else inputs
         start_time = time.time()
-        self.module.fit(**inputs, **target_step)
+        if isinstance(self.module, sktime.base.BaseObject):
+            inps = {
+                key: val.to_dataframe() if isinstance(val, xr.DataArray) else val for key, val in inps.items()
+            }
+        self.module.fit(**inps)
         self.training_time.set_kv("", time.time() - start_time)
 
     def _callbacks(self):
@@ -151,15 +160,22 @@ class Step(BaseStep):
         #        return
         # TODO looks a bit hacky?
         if self.method is None:
-            method = getattr(
-                self.module,
-                list(set(self.module.__dir__()) & {"transform", "predict"})[0],
-            )
+            method = getattr(self.module, list(set(self.module.__dir__()) & {"transform", "predict"})[0])
         else:
             method = getattr(self.module, self.method)
+        inps = dict(filter(lambda x: x[0] in inspect.signature(method).parameters.keys(), input_data.items()))
 
         start_time = time.time()
-        result = method(**input_data)
+        # TODO use inspect to get all inputs needed for method
+        if isinstance(self.module, sktime.base.BaseObject):
+            inp = {
+                key: val.to_dataframe().asfreq(pd.infer_freq(val.to_dataframe().index)).to_numpy() if isinstance(val, xr.DataArray) else val for key, val in inps.items()
+            }
+            result = method(**inp).to_xarray()
+            result = result[list(result.data_vars)[0]]
+        else:
+            result = method(**input_data)
+
         self.transform_time.set_kv("", time.time() - start_time)
         return self._post_transform(result)
 
@@ -182,38 +198,39 @@ class Step(BaseStep):
 
         """
         # TODO handle different named dims
+        if len(inputs) == 0:
+            return  {}
         dims = set()
         for inp in inputs.values():
-            dims.update(inp.dims)
+            if isinstance(inp, xr.DataArray): # TODO hacky
+                dims.update(inp.dims)
 
         if target is not None:
             for inp in target.values():
                 dims.update(inp.dims)
-        dims.remove(_get_time_indexes(inputs)[0])
-        if target is None:
-            return dict(
-                zip(inputs.keys(), xr.align(*list(inputs.values()), exclude=dims))
-            ), {}
-        result = dict(
-            zip(
-                list(inputs.keys()) + list(target.keys()),
-                xr.align(
-                    *list(inputs.values()), *list(target.values()), exclude=dims
-                ),
-            )
+        for key, val in inputs.items():
+            if isinstance(val, xr.DataArray):
+                inputs[key] = inputs[key].rename({
+                    _get_time_indexes(val, get_all=False) : "time"
+                })
+        if len(dict(filter(lambda x: isinstance(x[1], xr.DataArray), inputs.items()))) > 0:
+            dims.remove(_get_time_indexes(dict(filter(lambda x: isinstance(x[1], xr.DataArray), inputs.items())))[0])
+        result = dict(zip(
+                dict(filter(lambda x: isinstance(x[1], xr.DataArray), list(inputs.items()) )).keys(),
+                xr.align(*filter(lambda x: isinstance(x, xr.DataArray), list(inputs.values()) ),
+                         exclude=dims)))
+        result.update(
+            dict(filter(lambda x: not isinstance(x[1], xr.DataArray), list(inputs.items())),)
         )
-
-        return {key: result[key] for key in inputs.keys()}, {
-                key: result[key] for key in target.keys()}
+        return {key: result[key] for key in inputs.keys()}
 
     @classmethod
-    def load(cls, stored_step: Dict, inputs, targets, module, file_manager):
+    def load(cls, stored_step: Dict, inputs, module, file_manager):
         """
         Load a stored step.
 
         :param stored_step: Informations about the stored step
         :param inputs: The input step of the stored step
-        :param targets: The target step of the stored step
         :param module: The module wrapped by this step
         :return: Step
         """
@@ -236,7 +253,6 @@ class Step(BaseStep):
         step = cls(
             module,
             inputs,
-            targets=targets,
             file_manager=file_manager,
             condition=condition,
             refit_conditions=refit_conditions,
@@ -339,9 +355,6 @@ class Step(BaseStep):
     def _refit(self, start):
         refit_input = self._get_inputs(
             self.input_steps, start - self.retrain_batch - self.lag
-        )
-        refit_target = self._get_inputs(
-            self.targets, start - self.retrain_batch - self.lag
         )
         # Refit only if enough data are available
         if list(filter(lambda x: x is not None, refit_input.values())):

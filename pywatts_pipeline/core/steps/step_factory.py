@@ -71,9 +71,11 @@ class StepFactory:
             del kwargs["use_probabilistic_transform"]
 
         pipeline = self._check_ins(kwargs)
+        # TODO needs to check that inputs are unambigious -> I.e. check that each input has only one output
+        self._check_ins(kwargs)
 
-        input_steps, target_steps = self._check_and_extract_inputs(
-            kwargs, module, pipeline
+        input_steps = self.check_and_extract_inputs(
+            kwargs, module, pipeline, method
         )
 
         if isinstance(module, Pipeline):
@@ -81,7 +83,6 @@ class StepFactory:
                 module,
                 input_steps,
                 pipeline.file_manager,
-                targets=target_steps,
                 callbacks=callbacks,
                 computation_mode=computation_mode,
                 condition=condition,
@@ -93,7 +94,6 @@ class StepFactory:
                 module,
                 input_steps,
                 pipeline.file_manager,
-                targets=target_steps,
                 method=method,
                 callbacks=callbacks,
                 computation_mode=computation_mode,
@@ -102,27 +102,25 @@ class StepFactory:
                 lag=lag,
             )
 
-        pipeline.add(
-            module=step,
-            input_ids=[step.id for step in input_steps.values()],
-            target_ids=[step.id for step in target_steps.values()],
-        )
-
-        if len(target_steps) > 1:
-            step.last = False
-            for target in target_steps:
-                r_step = step.get_result_step(target)
-                r_id = pipeline.add(module=step)
-                r_step.id = r_id
 
         return StepInformation(step, pipeline)
 
-    def _check_and_extract_inputs(self, kwargs, module, pipeline, set_last=True):
-        transform_arguments = inspect.signature(module.transform).parameters.keys()
-        fit_arguments = inspect.signature(module.fit).parameters.keys()
-        if "kwargs" not in transform_arguments and not isinstance(module, Pipeline):
+    def _check_and_extract_inputs(self, kwargs, module, pipeline, method=None):
+        input_steps = {}
+        if method is None:
+            transform_arguments = \
+                dict(filter(lambda x: isinstance(x[1].default, inspect._empty),
+                            inspect.signature(getattr(module, list(set(module.__dir__()) & {"transform", "predict"})[
+                                0])).parameters.items())
+                     ).keys()
+        else:
+            transform_arguments = \
+                dict(filter(lambda x: isinstance(x[1].default, inspect._empty),
+                            inspect.signature(getattr(module, method)).parameters.items())
+                     ).keys()
+        
+        if "kwargs" not in inspect.signature(getattr(module, list(set(module.__dir__()) & {"transform", "predict"})[0])).parameters.keys() and not isinstance(module, Pipeline):
             in_keys = set(transform_arguments) & set(kwargs.keys())
-            t_keys = (set(fit_arguments) & set(kwargs.keys())) - in_keys
             if len(in_keys) != len(transform_arguments):
                 raise StepCreationException(
                     f"The module {module.name} misses the following inputs: {set(transform_arguments) - in_keys}. "
@@ -131,25 +129,23 @@ class StepFactory:
                     module,
                 )
 
-            input_steps: Dict[str, BaseStep] = {
-                key: self._check_in(kwargs[key], pipeline=pipeline, set_last=set_last)
-                for key in in_keys
-            }
-            target_steps: Dict[str, BaseStep] = {
-                key: self._check_in(kwargs[key], pipeline=pipeline, set_last=set_last)
-                for key in t_keys
-            }
+            if method is None:
+                transform_arguments = inspect.signature(
+                    getattr(module, list(set(module.__dir__()) & {"transform", "predict"})[0])).parameters.keys()
+            else:
+                transform_arguments = inspect.signature(
+                    getattr(module, method)).parameters.keys()
+            fit_arguments = inspect.signature(module.fit).parameters.keys()
+            in_keys = (set(transform_arguments) | set(fit_arguments)) & set(kwargs.keys())
+            input_steps: Dict[str, BaseStep] = {key: self.check_in(kwargs[key], pipeline=pipeline) for key in kwargs}
+    
         else:
-            input_steps: Dict[str, BaseStep] = {
-                key: self._check_in(kwargs[key], pipeline=pipeline, set_last=set_last)
-                for key in filter(lambda x: not x.startswith("target"), kwargs.keys())
-            }
-            target_steps: Dict[str, BaseStep] = {
-                key: self._check_in(kwargs[key], pipeline=pipeline, set_last=set_last)
-                for key in filter(lambda x: x.startswith("target"), kwargs.keys())
-            }
-        return input_steps, target_steps
-
+            input_steps: Dict[str, BaseStep] = {key: self.check_in(kwargs[key], pipeline=pipeline)
+                                            for key in kwargs.keys()}
+    
+    
+        return input_steps
+    
     def _check_in(self, element, pipeline, set_last=True):
         if isinstance(element, StepInformation):
             if set_last:
@@ -171,21 +167,15 @@ class StepFactory:
         step = EitherOrStep(
             {x.step.name + f"{i}": x.step for i, x in enumerate(inputs)}
         )
-        pipeline.add(module=step, input_ids=list(map(lambda x: x.step.id, inputs)))
+        #pipeline.add(module=step, input_ids=list(map(lambda x: x.step.id, inputs)))
         return StepInformation(step, pipeline)
 
     @staticmethod
     def _check_ins(kwargs):
         pipeline = None
-        for input_step in kwargs.values():
+        for key, input_step in kwargs.items():
             if isinstance(input_step, StepInformation):
                 pipeline_temp = input_step.pipeline
-                if len(input_step.step.targets) > 1:
-                    raise StepCreationException(
-                        f"The step {input_step.step.name} has multiple outputs. "
-                        "Adding such a step to the pipeline is ambigious. "
-                        "Specifiy the desired column of your dataset by using step[<column_name>]",
-                    )
             elif isinstance(input_step, Pipeline):
                 raise StepCreationException(
                     "Adding a pipeline as input might be ambigious. "
@@ -195,12 +185,6 @@ class StepFactory:
                 # We assume that a tuple consists only of step informations and do not contain a pipeline.
                 pipeline_temp = input_step[0].pipeline
 
-                if len(input_step[0].step.targets) > 1:
-                    raise StepCreationException(
-                        f"The step {input_step.step.name} has multiple outputs. Adding such a step to the pipeline is "
-                        "ambigious. "
-                        "Specifiy the desired column of your dataset by using step[<column_name>]",
-                    )
 
                 for step_information in input_step[1:]:
 
@@ -215,6 +199,14 @@ class StepFactory:
                             f"A step can only be part of one pipeline. Assure that all inputs {kwargs}"
                             f"are part of the same pipeline."
                         )
+
+            elif isinstance(input_step, list):
+                pass # TODO implement implicit FeatureUnion
+
+            else:
+                kwargs[key] = StepInformation(DummyStep(input_step), pipeline) # TODO ensure that pipeline exists..
+                # TODO is DummyStep really a good idea?
+                #  Should we restrict this to ForecastingHorizons?
 
             if pipeline_temp is None:
                 raise StepCreationException("No Pipeline is specified.")
@@ -244,21 +236,15 @@ class StepFactory:
 
         """
         pipeline = self._check_ins(kwargs)
-
         input_steps, target_steps = self._check_and_extract_inputs(
-            kwargs, module, pipeline, set_last=False
+            kwargs, module, pipeline
         )
+        step = SummaryStep(module, input_steps, pipeline.file_manager, )
 
         step = SummaryStep(
             module,
             input_steps,
             pipeline.file_manager,
-        )
-
-        pipeline.add(
-            module=step,
-            input_ids=[step.id for step in input_steps.values()],
-            target_ids=[step.id for step in target_steps.values()],
         )
 
         return SummaryInformation(step, pipeline)
