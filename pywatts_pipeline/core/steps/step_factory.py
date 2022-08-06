@@ -109,6 +109,7 @@ class StepFactory:
         )
 
         if len(target_steps) > 1:
+            # TODO why it is necessary to define here get_result_steps?
             step.last = False
             for target in target_steps:
                 r_step = step.get_result_step(target)

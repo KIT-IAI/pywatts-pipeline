@@ -13,6 +13,7 @@ from pywatts_pipeline.utils._xarray_time_series_utils import _get_time_indexes, 
 from pywatts_pipeline.core.summary.summary_object import (
     SummaryObjectList,
     SummaryCategory,
+    SummaryObject
 )
 
 logger = logging.getLogger(__name__)
@@ -48,19 +49,9 @@ class BaseStep(ABC):
         self.last = True
         self.buffer: Dict[str, xr.DataArray] = {}
 
-        self.condition = condition
-        self.transform_time = SummaryObjectList(
-            self.name + " Transform Time", category=SummaryCategory.TransformTime
-        )
-        self.training_time = SummaryObjectList(
-            self.name + " Training Time", category=SummaryCategory.FitTime
-        )
-        self.finished = False
-
     @abstractmethod
-    def get_result(
-        self, start: pd.Timestamp, return_all=False, minimum_data=(0, pd.Timedelta(0))
-    ):
+    def get_result(self, start: pd.Timestamp,
+                   return_all=False, minimum_data=(0, pd.Timedelta(0))):
         """
         This method is responsible for providing the result of this step.
         Therefore,
