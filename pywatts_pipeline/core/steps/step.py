@@ -78,6 +78,30 @@ class Step(BaseStep):
         self.refit_conditions = refit_conditions
         self.result_steps: Dict[str, ResultStep] = {}
 
+
+    def get_result(self, start: pd.Timestamp, return_all=False, minimum_data=(0, pd.Timedelta(0))):
+        """
+        This method is responsible for providing the result of this step.
+        Therefore,
+        this method triggers the get_input and get_target data methods.
+        Additionally, it triggers the computations and checks if all data are processed.
+
+        :param start: The start date of the requested results of the step
+        :type start: pd.Timedstamp
+        :param end: The end date of the requested results of the step (exclusive)
+        :type end: Optional[pd.Timestamp]
+        :return: The resulting data or None if no data are calculated
+        """
+        # Check if step should be executed.
+        if self._should_stop(start, minimum_data):
+            return None
+
+        # Only execute the module if the step is not finished and the results are not yet calculated
+        if not self.finished:
+            self._compute(start, minimum_data)
+        return self._pack_data(start, return_all=return_all, minimum_data=minimum_data)
+
+
     def _fit(self, inputs: Dict[str, BaseStep], target_step):
         # Fit the encapsulate module, if the input and the target is not stopped.
         self.module.fit(**inputs, **target_step)
@@ -88,6 +112,15 @@ class Step(BaseStep):
             if isinstance(callback, BaseCallback):
                 callback.set_filemanager(self.file_manager)
             callback(self.buffer)
+
+    def get_summaries(self, start):
+        """
+        Returns the fit times as summaries.
+        :return: The summary as markdown formatted string
+        :rtype: Str
+        """
+        self._callbacks()
+        return [self.transform_time, self.training_time]
 
     def _transform(self, input_step):
         if isinstance(self.module, BaseEstimator) and not self.module.is_fitted:
@@ -102,8 +135,16 @@ class Step(BaseStep):
         result = self.module.transform(**input_data)
         return self._post_transform(result)
 
+    def _post_transform(self, result):
+        if not isinstance(result, dict):
+            result = {self.name: result}
+        for key, res in result.items():
+            self.update_buffer(res, key)
+        return result
+
     def temporal_align_inputs(self, inputs, target=None):
         # TODO handle different named dims
+        # TODO move to step?
         dims = set()
         for inp in inputs.values():
             dims.update(inp.dims)

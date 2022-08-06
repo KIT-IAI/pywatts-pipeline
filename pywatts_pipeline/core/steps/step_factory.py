@@ -97,6 +97,7 @@ class StepFactory:
                                input_ids=[step.id for step in input_steps.values()],
                                target_ids=[step.id for step in target_steps.values()])
         if len(target_steps) > 1:
+            # TODO why it is necessary to define here get_result_steps?
             step.last = False
             for target in target_steps:
                 r_step = step.get_result_step(target)

@@ -46,7 +46,6 @@ class Pipeline(BaseTransformer):
     """
 
     def __init__(self, path: Optional[str] = ".", name="Pipeline"):
-        # TODO integrate Miraes API
         super().__init__(name)
         self.result = {}
         self.start_steps = dict()
@@ -78,7 +77,7 @@ class Pipeline(BaseTransformer):
 
         # Fill the start_step buffers
         for key, (start_step, _) in self.start_steps.items():
-            start_step.update_buffer(x[key].copy())
+            start_step.update_buffer(x[key].copy(), start_step.index)
 
         # Get start date for the new calculation (last date of the previous one)
         start = None if len(self.result) == 0 else get_last(self.result)
@@ -407,8 +406,7 @@ class Pipeline(BaseTransformer):
 
     def _get_summaries(self, start):
         summaries = []
-        for step in self.steps:
-            step._callbacks()
+        for step in filter(lambda x: isinstance(x, Step), self.steps):
             summaries.extend(step.get_summaries(start))
         return summaries
 
