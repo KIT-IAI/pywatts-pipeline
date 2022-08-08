@@ -182,7 +182,6 @@ class Step(BaseStep):
 
         """
         # TODO handle different named dims
-        # TODO move to step?
         dims = set()
         for inp in inputs.values():
             dims.update(inp.dims)
