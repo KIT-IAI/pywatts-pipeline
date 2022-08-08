@@ -3,19 +3,17 @@ from typing import Tuple, Dict, Union, List, Callable
 
 import xarray as xr
 
-from pywatts_pipeline.core.transformer.base import Base
-from pywatts_pipeline.core.steps.base_step import BaseStep
-from pywatts_pipeline.core.summary.base_summary import BaseSummary
-from pywatts_pipeline.core.steps.either_or_step import EitherOrStep
+from pywatts_pipeline.core.callbacks import BaseCallback
 from pywatts_pipeline.core.exceptions.step_creation_exception import StepCreationException
-from pywatts_pipeline.core.steps.inverse_step import InverseStep
 from pywatts_pipeline.core.pipeline import Pipeline
+from pywatts_pipeline.core.steps.base_step import BaseStep
+from pywatts_pipeline.core.steps.either_or_step import EitherOrStep
 from pywatts_pipeline.core.steps.pipeline_step import PipelineStep
-from pywatts_pipeline.core.steps.probabilistic_step import ProbablisticStep
 from pywatts_pipeline.core.steps.step import Step
 from pywatts_pipeline.core.steps.step_information import StepInformation, SummaryInformation
-from pywatts_pipeline.core.callbacks import BaseCallback
 from pywatts_pipeline.core.steps.summary_step import SummaryStep
+from pywatts_pipeline.core.summary.base_summary import BaseSummary
+from pywatts_pipeline.core.transformer.base import Base
 
 
 class StepFactory:
@@ -26,7 +24,7 @@ class StepFactory:
     def create_step(self,
                     module: Base,
                     kwargs: Dict[str, Union[StepInformation, Tuple[StepInformation, ...]]],
-                    use_inverse_transform: bool, use_predict_proba: bool,
+                    method,
                     callbacks: List[Union[BaseCallback, Callable[[Dict[str, xr.DataArray]], None]]],
                     condition,
                     batch_size,
@@ -77,18 +75,9 @@ class StepFactory:
                                 callbacks=callbacks, computation_mode=computation_mode, condition=condition,
                                 batch_size=batch_size, refit_conditions=refit_conditions, #retrain_batch=retrain_batch,
                                 lag=lag)
-        elif use_inverse_transform:
-            step = InverseStep(module, input_steps, pipeline.file_manager, targets=target_steps,
-                               callbacks=callbacks, computation_mode=computation_mode, condition=condition,
-                               #retrain_batch=retrain_batch,
-                               lag=lag)
-        elif use_predict_proba:
-            step = ProbablisticStep(module, input_steps, pipeline.file_manager, targets=target_steps,
-                                    callbacks=callbacks, computation_mode=computation_mode, condition=condition,
-                                    #retrain_batch=retrain_batch,
-                                    lag=lag)
         else:
-            step = Step(module, input_steps, pipeline.file_manager, targets=target_steps,
+            # TODO check if method is allowed
+            step = Step(module, input_steps, pipeline.file_manager, targets=target_steps, method=method,
                         callbacks=callbacks, computation_mode=computation_mode, condition=condition,
                         batch_size=batch_size, refit_conditions=refit_conditions, #retrain_batch=retrain_batch,
                         lag=lag)

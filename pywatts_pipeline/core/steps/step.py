@@ -4,20 +4,19 @@ import warnings
 from typing import Optional, Dict, Union, Callable, List
 
 import cloudpickle
-import distlib.database
 import numpy as np
 import pandas as pd
 import xarray as xr
 
 from pywatts_pipeline.core.callbacks import BaseCallback
-from pywatts_pipeline.core.transformer.base import Base, BaseEstimator
 from pywatts_pipeline.core.condition.base_condition import BaseCondition
-from pywatts_pipeline.core.steps.base_step import BaseStep
-from pywatts_pipeline.core.util.run_setting import RunSetting
-from pywatts_pipeline.core.util.computation_mode import ComputationMode
 from pywatts_pipeline.core.exceptions.not_fitted_exception import NotFittedException
-from pywatts_pipeline.core.util.filemanager import FileManager
+from pywatts_pipeline.core.steps.base_step import BaseStep
 from pywatts_pipeline.core.steps.result_step import ResultStep
+from pywatts_pipeline.core.transformer.base import Base, BaseEstimator
+from pywatts_pipeline.core.util.computation_mode import ComputationMode
+from pywatts_pipeline.core.util.filemanager import FileManager
+from pywatts_pipeline.core.util.run_setting import RunSetting
 from pywatts_pipeline.utils._xarray_time_series_utils import _get_time_indexes
 
 logger = logging.getLogger(__name__)
@@ -54,7 +53,7 @@ class Step(BaseStep):
     """
 
     def __init__(self, module: Base, input_steps: Dict[str, BaseStep], file_manager, *,
-                 targets: Optional[Dict[str, "BaseStep"]] = None,
+                 targets: Optional[Dict[str, "BaseStep"]] = None, method=None,
                  computation_mode=ComputationMode.Default,
                  callbacks: List[Union[BaseCallback, Callable[[Dict[str, xr.DataArray]], None]]] = [],
                  condition=None,
@@ -62,6 +61,7 @@ class Step(BaseStep):
                  refit_conditions=[],
                  retrain_batch=pd.Timedelta(hours=24),
                  lag=pd.Timedelta(hours=24)):
+        self.method = method
         super().__init__(input_steps, targets, condition=condition,
                          computation_mode=computation_mode, name=module.name)
         self.file_manager = file_manager
@@ -77,7 +77,6 @@ class Step(BaseStep):
         self.lag = lag
         self.refit_conditions = refit_conditions
         self.result_steps: Dict[str, ResultStep] = {}
-
 
     def get_result(self, start: pd.Timestamp, return_all=False, minimum_data=(0, pd.Timedelta(0))):
         """
@@ -96,11 +95,8 @@ class Step(BaseStep):
         if self._should_stop(start, minimum_data):
             return None
 
-        # Only execute the module if the step is not finished and the results are not yet calculated
-        if not self.finished:
-            self._compute(start, minimum_data)
+        self._compute(start, minimum_data)
         return self._pack_data(start, return_all=return_all, minimum_data=minimum_data)
-
 
     def _fit(self, inputs: Dict[str, BaseStep], target_step):
         # Fit the encapsulate module, if the input and the target is not stopped.
@@ -123,6 +119,7 @@ class Step(BaseStep):
         return [self.transform_time, self.training_time]
 
     def _transform(self, input_step):
+        # TODO has to be more general for sktime
         if isinstance(self.module, BaseEstimator) and not self.module.is_fitted:
             message = f"Try to call transform in {self.name} on not fitted module {self.module.name}"
             logger.error(message)
@@ -132,7 +129,12 @@ class Step(BaseStep):
         for val in input_data.values():
             if val is None or len(val) == 0:
                 return
-        result = self.module.transform(**input_data)
+        # TODO looks a bit hacky?
+        if self.method is None:
+            method = getattr(self.module, list(set(self.module.__dir__()) & {"transform", "predict"})[0])
+        else:
+            method = getattr(self.module, self.method)
+        result = method(**input_data)
         return self._post_transform(result)
 
     def _post_transform(self, result):
@@ -161,9 +163,6 @@ class Step(BaseStep):
 
             return {key: result[key] for key in inputs.keys()}, \
                    {key: result[key] for key in target.keys()}
-
-
-
 
     @classmethod
     def load(cls, stored_step: Dict, inputs, targets, module, file_manager):
@@ -200,55 +199,35 @@ class Step(BaseStep):
         step.id = stored_step["id"]
         step.name = stored_step["name"]
         step.last = stored_step["last"]
+        step.method = stored_step["method"]
 
         return step
 
     def _compute(self, start, minimum_data):
-        input_data = self._get_input(start, minimum_data)
-        target = self._get_target(start, minimum_data)
+        input_data = self._get_inputs(self.input_steps, start, minimum_data)
+        target = self._get_inputs(self.targets, start, minimum_data)
         if self.current_run_setting.computation_mode in [ComputationMode.Default, ComputationMode.FitTransform,
                                                          ComputationMode.Train]:
-            start_time = time.time()
             input_data, target = self.temporal_align_inputs(input_data, target)
-
+            start_time = time.time()
             self._fit(input_data, target)
             self.training_time.set_kv("", time.time() - start_time)
         elif self.module is BaseEstimator:
             logger.info("%s not fitted in Step %s", self.module.name, self.name)
 
         start_time = time.time()
-        result = self._transform(input_data)
+        self._transform(input_data)
         self.transform_time.set_kv("", time.time() - start_time)
-        result_dict = {}
-        if result is None:
-            return result_dict
-        for key, res in result.items():
-            if len(res) > 0:
-                index = res.indexes[_get_time_indexes(result)[0]]
-                start = max(index[0], start) if start is not None else index[0]
-                result_dict[key] = res.sel(**{_get_time_indexes(res)[0]: index[(index >= start)]})
-        return result_dict
 
-    def _get_target(self, start, minimum_data=(0, pd.Timedelta(0))):
+    def _get_inputs(self, inputs, start, minimum_data=(0, pd.Timedelta(0))):
         min_data_module = self.module.get_min_data()
         if isinstance(min_data_module, (int, np.integer)):
             minimum_data = minimum_data[0] + min_data_module, minimum_data[1]
         else:
             minimum_data = minimum_data[0], minimum_data[1] + min_data_module
         return {
-            key: target.get_result(start, minimum_data=minimum_data)
-            for key, target in self.targets.items()
-        }
-
-    def _get_input(self, start, minimum_data=(0, pd.Timedelta(0))):
-        min_data_module = self.module.get_min_data()
-        if isinstance(min_data_module, (int, np.integer)):
-            minimum_data = minimum_data[0] + min_data_module, minimum_data[1]
-        else:
-            minimum_data = minimum_data[0], minimum_data[1] + min_data_module
-        return {
-            key: input_step.get_result(start, minimum_data=minimum_data) for
-            key, input_step in self.input_steps.items()
+            key: inp.get_result(start, minimum_data=minimum_data)
+            for key, inp in inputs.items()
         }
 
     def get_json(self, fm: FileManager):
@@ -271,6 +250,7 @@ class Step(BaseStep):
                 cloudpickle.dump(callback, outfile)
             callbacks_paths.append(callback_path)
         json.update({"callbacks": callbacks_paths,
+                     "method": self.method,
                      "condition": condition_path,
                      "refit_conditions": refit_conditions_paths,
                      "batch_size": self.batch_size})
@@ -295,16 +275,16 @@ class Step(BaseStep):
                         self._refit(end)
                         break
                 elif isinstance(refit_condition, Callable):
-                    input_data = self._get_input(start)
-                    target = self._get_target(start)
+                    input_data = self._get_inputs(self.input_steps,start)
+                    target = self._get_inputs(self.targets, start)
                     if refit_condition(input_data, target):
                         self._refit(end)
                         break
 
     def _refit(self, end):
         # TODO there is something wrong with end... We need to introduce a lag here?
-        refit_input = self._get_input(end - self.retrain_batch - self.lag)
-        refit_target = self._get_target(end - self.retrain_batch - self.lag)
+        refit_input = self._get_inputs(self.input_steps, end - self.retrain_batch - self.lag)
+        refit_target = self._get_inputs(self.targets, end - self.retrain_batch - self.lag)
         refit_input, refit_target = self.temporal_align_inputs(refit_input, refit_target)
 
         self.module.refit(**refit_input, **refit_target)

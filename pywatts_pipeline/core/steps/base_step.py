@@ -141,16 +141,13 @@ class BaseStep(ABC):
         :return: The restored step.
         """
 
-    def _get_input(self, start, minimum_data=(0, pd.Timedelta(0))):
-        return None
-
-    def _get_target(self, start, minimum_data=(0, pd.Timedelta(0))):
+    def _get_inputs(self, input_steps, start, minimum_data=(0, pd.Timedelta(0))):
         return None
 
     def _should_stop(self, start, minimum_data) -> bool:
         # Fetch input and target data
-        input_result = self._get_input(start, minimum_data=minimum_data)
-        target_result = self._get_target(start, minimum_data=minimum_data)
+        input_result = self._get_inputs(self.input_steps, start, minimum_data=minimum_data)
+        target_result = self._get_inputs(self.targets, start, minimum_data=minimum_data)
 
         # Check if either the condition is True or some of the previous steps stopped (return_value is None)
         return (self.condition is not None and not self.condition(input_result, target_result)) or \

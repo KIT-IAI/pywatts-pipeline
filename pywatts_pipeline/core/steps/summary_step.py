@@ -66,6 +66,6 @@ class SummaryStep(Step):
         :return: The summary as markdown formatted string
         :rtype: Str
         """
-        input_data = self._get_input(start)
+        input_data = self._get_inputs(self.input_steps, start)
         input_data = self.temporal_align_inputs(input_data)
         return [self._transform(input_data)]

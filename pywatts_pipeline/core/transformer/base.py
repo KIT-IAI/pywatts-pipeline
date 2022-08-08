@@ -142,8 +142,7 @@ class Base(ABC):
         return 0
 
     def __call__(self,
-                 use_inverse_transform: bool = False,
-                 use_prob_transform: bool = False,
+                 method=None,
                  callbacks: List[BaseCallback, Callable[[Dict[str, xr.DataArray]], None]] = [],
                  condition: Optional[Callable] = None,
                  computation_mode: ComputationMode = ComputationMode.Default,
@@ -194,8 +193,7 @@ class Base(ABC):
         from pywatts_pipeline.core.steps.step_factory import StepFactory
 
         return StepFactory().create_step(self, kwargs=kwargs,
-                                         use_inverse_transform=use_inverse_transform,
-                                         use_predict_proba=use_prob_transform,
+                                         method=method,
                                          condition=condition,
                                          callbacks=callbacks,
                                          computation_mode=computation_mode, batch_size=batch_size,
