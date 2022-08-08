@@ -3,7 +3,6 @@ from unittest.mock import MagicMock
 
 from pywatts_pipeline.core.exceptions.kind_of_transform_does_not_exist_exception import \
     KindOfTransformDoesNotExistException, KindOfTransform
-from pywatts_pipeline.core.steps.probabilistic_step import ProbablisticStep
 import pandas as pd
 import xarray as xr
 

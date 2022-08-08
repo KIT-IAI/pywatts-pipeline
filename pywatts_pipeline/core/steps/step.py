@@ -29,12 +29,12 @@ class Step(BaseStep):
 
     :param module: The module which is wrapped by the step-
     :type module: Base
-    :param input_step: The input_step of the module.
-    :type input_step: Step
+    :param input_steps: The input_step of the module.
+    :type input_steps: Step
     :param file_manager: The file_manager which is used for storing data.
     :type file_manager: FileManager
-    :param target: The step against which's output the module of the current step should be fitted. (Default: None)
-    :type target: Optional[Step]
+    :param targets: The step against which's output the module of the current step should be fitted. (Default: None)
+    :type targets: Optional[Step]
     :param computation_mode: The computation mode which should be for this step. (Default: ComputationMode.Default)
     :type computation_mode: ComputationMode
     :param callbacks: Callbacks to use after results are processed.
@@ -57,7 +57,6 @@ class Step(BaseStep):
                  computation_mode=ComputationMode.Default,
                  callbacks: List[Union[BaseCallback, Callable[[Dict[str, xr.DataArray]], None]]] = [],
                  condition=None,
-                 batch_size: Optional[None] = None,
                  refit_conditions=[],
                  retrain_batch=pd.Timedelta(hours=24),
                  lag=pd.Timedelta(hours=24)):
@@ -68,7 +67,6 @@ class Step(BaseStep):
         self.module = module
         self.retrain_batch = retrain_batch
         self.callbacks = callbacks
-        self.batch_size = batch_size
         if self.current_run_setting.computation_mode is not ComputationMode.Refit and len(refit_conditions) > 0:
             message = "You added a refit_condition without setting the computation_mode to refit." \
                       " The condition will be ignored."
@@ -100,7 +98,9 @@ class Step(BaseStep):
 
     def _fit(self, inputs: Dict[str, BaseStep], target_step):
         # Fit the encapsulate module, if the input and the target is not stopped.
+        start_time = time.time()
         self.module.fit(**inputs, **target_step)
+        self.training_time.set_kv("", time.time() - start_time)
 
     def _callbacks(self):
         # plots and writs the data if the step is finished.
@@ -118,23 +118,22 @@ class Step(BaseStep):
         self._callbacks()
         return [self.transform_time, self.training_time]
 
-    def _transform(self, input_step):
+    def _transform(self, input_data):
         # TODO has to be more general for sktime
         if isinstance(self.module, BaseEstimator) and not self.module.is_fitted:
             message = f"Try to call transform in {self.name} on not fitted module {self.module.name}"
             logger.error(message)
             raise NotFittedException(message, self.name, self.module.name)
 
-        input_data = self.temporal_align_inputs(input_step)
-        for val in input_data.values():
-            if val is None or len(val) == 0:
-                return
         # TODO looks a bit hacky?
         if self.method is None:
             method = getattr(self.module, list(set(self.module.__dir__()) & {"transform", "predict"})[0])
         else:
             method = getattr(self.module, self.method)
+
+        start_time = time.time()
         result = method(**input_data)
+        self.transform_time.set_kv("", time.time() - start_time)
         return self._post_transform(result)
 
     def _post_transform(self, result):
@@ -146,7 +145,6 @@ class Step(BaseStep):
 
     def temporal_align_inputs(self, inputs, target=None):
         # TODO handle different named dims
-        # TODO move to step?
         dims = set()
         for inp in inputs.values():
             dims.update(inp.dims)
@@ -193,7 +191,7 @@ class Step(BaseStep):
             callbacks.append(callback)
 
         step = cls(module, inputs, targets=targets, file_manager=file_manager, condition=condition,
-                   refit_conditions=refit_conditions, callbacks=callbacks, batch_size=stored_step["batch_size"])
+                   refit_conditions=refit_conditions, callbacks=callbacks)
         step.default_run_setting = RunSetting.load(stored_step["default_run_setting"])
         step.current_run_setting = step.default_run_setting.clone()
         step.id = stored_step["id"]
@@ -206,18 +204,14 @@ class Step(BaseStep):
     def _compute(self, start, minimum_data):
         input_data = self._get_inputs(self.input_steps, start, minimum_data)
         target = self._get_inputs(self.targets, start, minimum_data)
+        input_data, target = self.temporal_align_inputs(input_data, target)
         if self.current_run_setting.computation_mode in [ComputationMode.Default, ComputationMode.FitTransform,
                                                          ComputationMode.Train]:
-            input_data, target = self.temporal_align_inputs(input_data, target)
-            start_time = time.time()
             self._fit(input_data, target)
-            self.training_time.set_kv("", time.time() - start_time)
         elif self.module is BaseEstimator:
             logger.info("%s not fitted in Step %s", self.module.name, self.name)
 
-        start_time = time.time()
         self._transform(input_data)
-        self.transform_time.set_kv("", time.time() - start_time)
 
     def _get_inputs(self, inputs, start, minimum_data=(0, pd.Timedelta(0))):
         min_data_module = self.module.get_min_data()
@@ -253,7 +247,7 @@ class Step(BaseStep):
                      "method": self.method,
                      "condition": condition_path,
                      "refit_conditions": refit_conditions_paths,
-                     "batch_size": self.batch_size})
+                     })
         return json
 
     def refit(self, start: pd.Timestamp, end: pd.Timestamp):
@@ -262,6 +256,7 @@ class Step(BaseStep):
         :param start: The date of the first data used for retraining.
         :param end: The date of the last data used for retraining.
         """
+        # TODO seems to be very complex...
         if self.current_run_setting.computation_mode in [ComputationMode.Refit] and isinstance(self.module,
                                                                                                BaseEstimator):
             for refit_condition in self.refit_conditions:

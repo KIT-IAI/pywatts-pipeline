@@ -186,7 +186,7 @@ class Pipeline(BaseTransformer):
         result = self._transform(data)
 
         if refit:
-            self.refit(start=get_start(data), end=get_last(data))
+            self.refit()
 
         # TODO handle callbacks
         if summary:
@@ -420,5 +420,5 @@ class Pipeline(BaseTransformer):
             # A lag is needed, since if we have a 24 hour forecast we can evaluate the forecast not until 24 hours
             # are gone, since before not all target variables are available
             if isinstance(step, Step):
-                # TODO in the new online setting we need no lag or do we?
+                # TODO in the new online setting we need no lag or do we? We also need no start and end or?
                 step.refit(start - step.lag, end - step.lag)

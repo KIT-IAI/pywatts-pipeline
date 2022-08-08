@@ -16,7 +16,8 @@ class StartStep(BaseStep):
         self.name = index
         self.index = index
 
-    def get_result(self, start: pd.Timestamp, minimum_data=(0, pd.Timedelta(0))):
+    def get_result(self, start: pd.Timestamp, return_all=False, minimum_data=(0, pd.Timedelta(0))):
+        # TODO return as dict?
         return self._pack_data(start, minimum_data=minimum_data)
 
     @classmethod
