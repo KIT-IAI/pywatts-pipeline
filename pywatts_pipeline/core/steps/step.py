@@ -65,16 +65,18 @@ class Step(BaseStep):
                          computation_mode=computation_mode, name=module.name)
         self.file_manager = file_manager
         self.module = module
-        self.retrain_batch = retrain_batch
         self.callbacks = callbacks
         if self.current_run_setting.computation_mode is not ComputationMode.Refit and len(refit_conditions) > 0:
             message = "You added a refit_condition without setting the computation_mode to refit." \
                       " The condition will be ignored."
             warnings.warn(message)
             logger.warning(message)
-        self.lag = lag
         self.refit_conditions = refit_conditions
         self.result_steps: Dict[str, ResultStep] = {}
+
+        #TODO remove
+        self.lag = lag
+        self.retrain_batch = retrain_batch
 
     def get_result(self, start: pd.Timestamp, return_all=False, minimum_data=(0, pd.Timedelta(0))):
         """
@@ -187,7 +189,6 @@ class Step(BaseStep):
         for callback_path in stored_step["callbacks"]:
             with open(callback_path, 'rb') as pickle_file:
                 callback = cloudpickle.load(pickle_file)
-            callback.set_filemanager(file_manager)
             callbacks.append(callback)
 
         step = cls(module, inputs, targets=targets, file_manager=file_manager, condition=condition,
@@ -208,7 +209,7 @@ class Step(BaseStep):
         if self.current_run_setting.computation_mode in [ComputationMode.Default, ComputationMode.FitTransform,
                                                          ComputationMode.Train]:
             self._fit(input_data, target)
-        elif self.module is BaseEstimator:
+        elif self.module is BaseEstimator: # TODO more general for sktime
             logger.info("%s not fitted in Step %s", self.module.name, self.name)
 
         self._transform(input_data)
@@ -257,20 +258,16 @@ class Step(BaseStep):
         :param end: The date of the last data used for retraining.
         """
         # TODO seems to be very complex...
-        if self.current_run_setting.computation_mode in [ComputationMode.Refit] and isinstance(self.module,
-                                                                                               BaseEstimator):
+        if self.current_run_setting.computation_mode in [ComputationMode.Refit]:
             for refit_condition in self.refit_conditions:
                 if isinstance(refit_condition, BaseCondition):
                     condition_input = {key: value.step.get_result(start) for key, value in
                                        refit_condition.kwargs.items()}
-                    for val in condition_input.values():
-                        if val is None:
-                            return
                     if refit_condition.evaluate(**condition_input):
                         self._refit(end)
                         break
                 elif isinstance(refit_condition, Callable):
-                    input_data = self._get_inputs(self.input_steps,start)
+                    input_data = self._get_inputs(self.input_steps, start)
                     target = self._get_inputs(self.targets, start)
                     if refit_condition(input_data, target):
                         self._refit(end)
