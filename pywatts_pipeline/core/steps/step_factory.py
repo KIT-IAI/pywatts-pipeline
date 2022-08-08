@@ -5,9 +5,7 @@ from typing import Tuple, Dict, Union, List, Callable
 import xarray as xr
 
 from pywatts_pipeline.core.callbacks import BaseCallback
-from pywatts_pipeline.core.exceptions.step_creation_exception import (
-    StepCreationException,
-)
+from pywatts_pipeline.core.exceptions.step_creation_exception import StepCreationException
 from pywatts_pipeline.core.pipeline import Pipeline
 from pywatts_pipeline.core.steps.base_step import BaseStep
 from pywatts_pipeline.core.steps.either_or_step import EitherOrStep
@@ -98,7 +96,7 @@ class StepFactory:
                 callbacks=callbacks,
                 computation_mode=computation_mode,
                 condition=condition,
-                refit_conditions=refit_conditions,  # retrain_batch=retrain_batch,
+                refit_conditions=refit_conditions,
                 lag=lag,
             )
 

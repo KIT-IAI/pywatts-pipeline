@@ -144,7 +144,11 @@ class Step(BaseStep):
             message = f"Try to call transform in {self.name} on not fitted module {self.module.name}"
             logger.error(message)
             raise NotFittedException(message, self.name, self.module.name)
-
+        # TODO where is temporal alignment now?
+        #input_data = self.temporal_align_inputs(input_step)
+        #for val in input_data.values():
+        #    if val is None or len(val) == 0:
+        #        return
         # TODO looks a bit hacky?
         if self.method is None:
             method = getattr(
