@@ -30,7 +30,7 @@ class ResultStep(BaseStep):
         else:
             result = {self.buffer_element: list(self.input_steps.values())[0].get_result(start, self.buffer_element,
                                                                                        minimum_data=minimum_data)}
-        if result is None:
+        if result is None or self.buffer_element not in result.keys():
             return None
         else:
             return result[self.buffer_element]
