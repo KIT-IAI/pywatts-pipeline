@@ -35,17 +35,20 @@ class BaseStep(ABC):
         self.current_run_setting = self.default_run_setting.clone()
         self.input_steps: Dict[str, "BaseStep"] = dict() if input_steps is None else input_steps
         self.targets: Dict[str, "BaseStep"] = dict() if targets is None else targets
-        self.condition = condition
-
         self.name = name
-
         self.id = -1
-        self.finished = False
         self.last = True
-        self._current_end = None
         self.buffer: Dict[str, xr.DataArray] = {}
-        self.training_time = SummaryObjectList(self.name + " Training Time", category=SummaryCategory.FitTime)
+
+        # TODO move to Step
+        self.condition = condition
         self.transform_time = SummaryObjectList(self.name + " Transform Time", category=SummaryCategory.TransformTime)
+        self.training_time = SummaryObjectList(self.name + " Training Time", category=SummaryCategory.FitTime)
+
+
+        # TODO is this necessary
+        self.finished = False
+        self._current_end = None
 
     @abstractmethod
     def get_result(self, start: pd.Timestamp,
@@ -71,9 +74,11 @@ class BaseStep(ABC):
         # TODO hacky
         if len(self.buffer) == 0:
             return None
-        time_index = _get_time_indexes(self.buffer)
+        time_index = _get_time_indexes(self.buffer, get_all=False)
+
+        # TODO do we need to distinguish between start and no start?
         if start:
-            index = list(self.buffer.values())[0].indexes[time_index[0]]
+            index = list(self.buffer.values())[0].indexes[time_index]
             if len(index) > 1:
                 freq = index[1] - index[0]
             else:
@@ -82,11 +87,11 @@ class BaseStep(ABC):
             # If end is not set, all values should be considered. Thus we add a small timedelta to the last index entry.
             # After sel copy is not needed, since it returns a new array.
             if return_all:
-                return {key: b.sel(**{time_index[0]: index[(index >= start)]}) for
+                return {key: b.sel(**{time_index: index[(index >= start)]}) for
                         key, b in self.buffer.items()}
             else:
                 return list(self.buffer.values())[0].sel(
-                    **{time_index[0]: index[(index >= start)]})
+                    **{time_index: index[(index >= start)]})
         else:
             self.finished = True
             if return_all:
