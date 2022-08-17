@@ -15,19 +15,18 @@ class EitherOrStep(BaseStep):
         super().__init__(input_steps)
         self.name = "EitherOr"
 
-    def _get_inputs(self, input_steps, start, minimum_data=(0, pd.Timedelta(0))):
-        for step in input_steps.values():
-            inp = step.get_result(start, minimum_data=minimum_data)
-            if inp is not None:
-                return {self.name: inp}
-        return None
-
-    def _post_transform(self, result):
-        if not isinstance(result, dict):
-            result = {self.name: result}
-        for key, res in result.items():
+    def get_result(self, start, end, minimum_data=(0, pd.Timedelta(0))):
+        input_data = self._get_input(start, end, minimum_data)
+        for key, res in input_data.items():
             self.update_buffer(res, key)
-        return result
+        return self._pack_data(start, minimum_data=minimum_data)
+
+    def _get_input(self, start, batch, minimum_data=(0, pd.Timedelta(0))):
+        for step in self.input_steps.values():
+            inp = step.get_result(start, batch, minimum_data=minimum_data)
+            if inp is not None:
+                return inp
+        return None
 
     @classmethod
     def load(cls, stored_step: dict, inputs, targets, module, file_manager):
@@ -47,27 +46,5 @@ class EitherOrStep(BaseStep):
         step.last = stored_step["last"]
         return step
 
-    def _should_stop(self, start, minimum_data):
-        return self._get_inputs(self.input_steps, start) is None
-
-
-    def get_result(self, start: pd.Timestamp,
-                   return_all=False, minimum_data=(0, pd.Timedelta(0))):
-            """
-            This method is responsible for providing the result of this step.
-            Therefore,
-            this method triggers the get_input and get_target data methods.
-            Additionally, it triggers the computations and checks if all data are processed.
-
-            :param start: The start date of the requested results of the step
-            :type start: pd.Timedstamp
-            :param end: The end date of the requested results of the step (exclusive)
-            :type end: Optional[pd.Timestamp]
-            :return: The resulting data or None if no data are calculated
-            """
-            # Check if step should be executed.
-            if self._should_stop(start, minimum_data):
-                return None
-
-            self._compute(start, minimum_data)
-            return self._pack_data(start, return_all=return_all, minimum_data=minimum_data)
+    def _should_stop(self, start, end):
+        return self._get_input(start, end) is None
