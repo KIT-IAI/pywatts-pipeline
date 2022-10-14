@@ -6,7 +6,7 @@
 # pyWATTS Pipeline
 
 This repository contains the functionality to define and execute a Graphpipeline for machine learning workflows.
-Such workflows compromises all tasks in time series analysis ranging from outlier handling as preprocessing to rescaling as postprocessing.
+Such workflows may include all tasks in time series analysis ranging from outlier handling as preprocessing to rescaling as postprocessing.
 
 Compatible machine learning modules can be found in the [pyWATTTS-Repo](https://github.com/KIT-IAI/pyWATTS).
 
@@ -15,7 +15,7 @@ Compatible machine learning modules can be found in the [pyWATTTS-Repo](https://
 To install and use pyWATTS you probably want to install the pipeline alongside with the modules. Therefore,
 refer to  [pyWATTTS-Repo](https://github.com/KIT-IAI/pyWATTS).
 
-If you want **only** install the pipeline without machine learning modules, you have to perform the following steps. 
+If you want to **only** install the pipeline without machine learning modules, you have to perform the following steps. 
 
 1. Clone the project
 2. Open a terminal of the virtual environment where you want to use the project
@@ -43,7 +43,7 @@ Therefore, pyWATTS is an automation tool for time series analysis that implement
   Furthermore, the execution of defined pipelines is independent of the execution environment. Consequently, for the
   repetition or reuse of a third-party experiment or pipeline, it should be sufficient to install pyWATTS and clone the
   third-party repository.
-* pyWATTS allows to define end-to-end pipelines for experiments. Therefore, experiments can be easily executed that
+* pyWATTS allows the definition of end-to-end pipelines for experiments. Therefore, experiments can be easily executed that
   comprise the preprocessing, models and benchmark training, evaluation, and comparison of the models with the
   benchmark.
 * pyWATTS defines an API that forces the different methods (called modules) to have the same interface in order to make
