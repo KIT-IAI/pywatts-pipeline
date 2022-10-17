@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name="pywatts-pipeline",
-    version="0.3.0",
+    version="0.1.0",
     packages=setuptools.find_packages(),
 
     install_requires=['cloudpickle', 'distlib', 'xarray>=0.19', 'numpy', 'pandas', 'tabulate'],
