@@ -91,7 +91,7 @@ class StepFactory:
 
         return StepInformation(step, pipeline)
 
-    def check_and_extract_inputs(self, kwargs, module, pipeline):
+    def check_and_extract_inputs(self, kwargs, module, pipeline, set_last=True):
         transform_arguments = inspect.signature(module.transform).parameters.keys()
         fit_arguments = inspect.signature(module.fit).parameters.keys()
         if "kwargs" not in transform_arguments and not isinstance(module, Pipeline):
@@ -105,12 +105,12 @@ class StepFactory:
                     module
                 )
 
-            input_steps: Dict[str, BaseStep] = {key: self.check_in(kwargs[key], pipeline=pipeline) for key in in_keys}
-            target_steps: Dict[str, BaseStep] = {key: self.check_in(kwargs[key], pipeline=pipeline) for key in t_keys}
+            input_steps: Dict[str, BaseStep] = {key: self.check_in(kwargs[key], pipeline=pipeline, set_last=set_last) for key in in_keys}
+            target_steps: Dict[str, BaseStep] = {key: self.check_in(kwargs[key], pipeline=pipeline, set_last=set_last) for key in t_keys}
         else:
-            input_steps: Dict[str, BaseStep] = {key: self.check_in(kwargs[key], pipeline=pipeline)
+            input_steps: Dict[str, BaseStep] = {key: self.check_in(kwargs[key], pipeline=pipeline, set_last=set_last)
                                                 for key in filter(lambda x: not x.startswith("target"), kwargs.keys())}
-            target_steps: Dict[str, BaseStep] = {key: self.check_in(kwargs[key], pipeline=pipeline)
+            target_steps: Dict[str, BaseStep] = {key: self.check_in(kwargs[key], pipeline=pipeline, set_last=set_last)
                                                  for key in filter(lambda x: x.startswith("target"), kwargs.keys())}
         return input_steps, target_steps
 
@@ -193,7 +193,7 @@ class StepFactory:
 
         pipeline = self._check_ins(kwargs)         # TODO needs to check that inputs are unambigious -> I.e. check that each input has only one output
 
-        input_steps, target_steps = self.check_and_extract_inputs(kwargs, module, pipeline)
+        input_steps, target_steps = self.check_and_extract_inputs(kwargs, module, pipeline, set_last=False)
 
         step = SummaryStep(module, input_steps, pipeline.file_manager, )
 

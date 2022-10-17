@@ -16,16 +16,16 @@ class EitherOrStep(BaseStep):
         self.name = "EitherOr"
 
     def get_result(self, start, minimum_data=(0, pd.Timedelta(0)), return_all=False):
-        input_data = self._get_input(start, minimum_data)
+        input_data = self._get_inputs(self.input_steps, start, minimum_data)
         for key, res in input_data.items():
             self.update_buffer(res, key)
         return self._pack_data(start, return_all=return_all, minimum_data=minimum_data)
 
-    def _get_input(self, start, batch, minimum_data=(0, pd.Timedelta(0))):
-        for step in self.input_steps.values():
-            inp = step.get_result(start, batch, minimum_data=minimum_data)
+    def _get_inputs(self, input_steps, start, minimum_data=(0, pd.Timedelta(0))):
+        for step in input_steps.values():
+            inp = step.get_result(start, minimum_data=minimum_data)
             if inp is not None:
-                return inp
+                return {self.name :inp}
         return None
 
     @classmethod
