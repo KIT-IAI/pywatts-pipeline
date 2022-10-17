@@ -1,4 +1,5 @@
 import inspect
+import warnings
 from typing import Tuple, Dict, Union, List, Callable
 
 import xarray as xr
@@ -50,6 +51,15 @@ class StepFactory:
                     use future values as target values.
         :return: StepInformation
         """
+        if "use_inverse_transform" in kwargs:
+            warnings.warn("The usage of use_inverse_transform is deprecated. And will be removed in pywatts_pipeline version 0.2")
+            method = "inverse_transform" if kwargs["use_inverse_transform"] else None
+            del kwargs["use_inverse_transform"]
+
+        if "use_probabilistic_transform" in kwargs:
+            warnings.warn("The usage of use_prob_transform is deprecated. And will be removed in pywatts_pipeline version 0.2")
+            method = "predict_proba" if kwargs["use_probabilistic_transform"] else None
+            del kwargs["use_probabilistic_transform"]
         # TODO needs to check that inputs are unambigious -> I.e. check that each input has only one output
         pipeline = self._check_ins(kwargs)
 
