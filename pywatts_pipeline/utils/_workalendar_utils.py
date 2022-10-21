@@ -1,4 +1,3 @@
-
 import workalendar.africa
 import workalendar.america
 import workalendar.asia
@@ -10,7 +9,7 @@ from pywatts_pipeline.core.exceptions.util_exception import UtilException
 
 
 def _init_calendar(continent: str, country: str):
-    """ Check if continent and country are correct and return calendar object.
+    """Check if continent and country are correct and return calendar object.
 
     :param continent: Continent where the country or region is located.
     :type continent: str
@@ -23,7 +22,5 @@ def _init_calendar(continent: str, country: str):
         module = getattr(workalendar, continent.lower())
         if hasattr(module, country):
             return getattr(module, country)()
-        else:
-            raise UtilException(f"The country {country} does not fit to the continent {continent}")
-    else:
-        raise UtilException(f"The continent {continent} does not exist.")
+        raise UtilException(f"The country {country} does not fit to the continent {continent}")
+    raise UtilException(f"The continent {continent} does not exist.")

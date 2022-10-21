@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import xarray as xr
 
@@ -32,7 +32,9 @@ class BaseSummary(Base, ABC):
         """
 
     @abstractmethod
-    def transform(self, file_manager: FileManager, **kwargs: xr.DataArray) -> SummaryObject:
+    def transform(
+        self, file_manager: FileManager, **kwargs: xr.DataArray
+    ) -> SummaryObject:
         """
         Transform method. Here the summary should be calculated.
         :param file_manager: The filemanager, it can be used to store data that corresponds to the summary as a file.
@@ -42,34 +44,6 @@ class BaseSummary(Base, ABC):
         :return: A markdown formatted string that contains the summary.
         :rtype: SummaryObject
         """
-
-    def save(self, fm: FileManager) -> Dict:
-        """
-        Saves the modules and the state of the module and returns a dictionary containing the relevant information.
-
-        :param fm: the filemanager which can be used by the module for saving information about the module.
-        :type fm: FileManager
-        :return: A dictionary containing the information needed for restoring the module
-        :rtype: Dict
-        """
-        return {"params": self.get_params(),
-                "name": self.name,
-                "class": self.__class__.__name__,
-                "module": self.__module__}
-
-    @classmethod
-    def load(cls, load_information: Dict):
-        """
-        Uses the data in load_information for restoring the state of the module.
-
-        :param load_information: The data needed for restoring the state of the module
-        :type load_information: Dict
-        :return: The restored module
-        :rtype: Base
-        """
-        params = load_information["params"]
-        name = load_information["name"]
-        return cls(name=name, **params)
 
     def __call__(self, **kwargs) -> SummaryInformation:
         """
@@ -86,13 +60,21 @@ class BaseSummary(Base, ABC):
         :rtype: SummaryInformation
         """
 
-        non_supported_kwargs = ["use_inverse_transform", "refit_conditions", "callbacks", "condition", "computation_mode",
-                                "batch_size"]
+        non_supported_kwargs = [
+            "use_inverse_transform",
+            "refit_conditions",
+            "callbacks",
+            "condition",
+            "computation_mode",
+            "batch_size",
+        ]
 
         for kwa in non_supported_kwargs:
             if kwa in kwargs:
-                warnings.warn(f"{kwa} is set for {self.name}. However, {self.name} is a SummaryModule and the"
-                              f" corresponding step do not support {kwa}.")
+                warnings.warn(
+                    f"{kwa} is set for {self.name}. However, {self.name} is a SummaryModule and the"
+                    f" corresponding step do not support {kwa}."
+                )
 
         from pywatts_pipeline.core.steps.step_factory import StepFactory
 

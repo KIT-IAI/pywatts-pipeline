@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Dict
 
 import pandas as pd
 
@@ -16,8 +16,9 @@ class ResultStep(BaseStep):
         self.buffer_element = buffer_element
         # TODO should have own buffer
 
-
-    def get_result(self, start: pd.Timestamp, return_all=False, minimum_data=(0, pd.Timedelta(0))):
+    def get_result(
+        self, start: pd.Timestamp, return_all=False, minimum_data=(0, pd.Timedelta(0))
+    ):
         """
         Returns the specified result of the previous step.
         """
@@ -26,14 +27,18 @@ class ResultStep(BaseStep):
         # TODO use _pack_data
         # TODO can we get rid off get_all?
         if not return_all:
-            result = list(self.input_steps.values())[0].get_result(start, self.buffer_element, minimum_data=minimum_data)
+            result = list(self.input_steps.values())[0].get_result(
+                start, self.buffer_element, minimum_data=minimum_data
+            )
         else:
-            result = {self.buffer_element: list(self.input_steps.values())[0].get_result(start, self.buffer_element,
-                                                                                       minimum_data=minimum_data)}
+            result = {
+                self.buffer_element: list(self.input_steps.values())[0].get_result(
+                    start, self.buffer_element, minimum_data=minimum_data
+                )
+            }
         if result is None or self.buffer_element not in result.keys():
             return None
-        else:
-            return result[self.buffer_element]
+        return result[self.buffer_element]
 
     def get_json(self, fm: FileManager) -> Dict:
         """

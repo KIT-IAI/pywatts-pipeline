@@ -1,7 +1,10 @@
 from typing import Dict
 
 from pywatts_pipeline.core.util.computation_mode import ComputationMode
-from pywatts_pipeline.core.summary.summary_formatter import SummaryFormatter, SummaryMarkdown
+from pywatts_pipeline.core.summary.summary_formatter import (
+    SummaryFormatter,
+    SummaryMarkdown,
+)
 
 
 class RunSetting:
@@ -14,13 +17,17 @@ class RunSetting:
     :type summary_formatter: SummaryFormatter
     """
 
-    def __init__(self, computation_mode: ComputationMode, summary_formatter: SummaryFormatter = SummaryMarkdown(),
-                 return_summary=False):
+    def __init__(
+        self,
+        computation_mode: ComputationMode,
+        summary_formatter: SummaryFormatter = SummaryMarkdown(),
+        return_summary=False,
+    ):
         self.computation_mode = computation_mode
         self.summary_formatter = summary_formatter
         self.return_summary = return_summary
 
-    def update(self, run_setting: 'RunSetting') -> 'RunSetting':
+    def update(self, run_setting: "RunSetting") -> "RunSetting":
         """
         Updates and returns a new run_setting. **Note** The existing run_settings stay unchanged.
 
@@ -36,7 +43,7 @@ class RunSetting:
         setting.return_summary = run_setting.return_summary
         return setting
 
-    def clone(self) -> 'RunSetting':
+    def clone(self) -> "RunSetting":
         """
         Clones the current RunSetting.
         :return: The cloned RunSetting.
@@ -45,7 +52,7 @@ class RunSetting:
         return RunSetting(
             computation_mode=self.computation_mode,
             summary_formatter=self.summary_formatter,
-            return_summary=self.return_summary
+            return_summary=self.return_summary,
         )
 
     def save(self) -> Dict:
@@ -54,15 +61,9 @@ class RunSetting:
         :return: A dict which contains all information needed for restoring the RunSetting
         :rtype: Dict
         """
-        return {
-            "computation_mode": int(self.computation_mode)
-        }
+        return {"computation_mode": int(self.computation_mode)}
 
     @staticmethod
-    def load(load_information):
-        return RunSetting(computation_mode=load_information["computation_mode"],
-                          summary_formatter=SummaryMarkdown())
-
     def load(load_information: Dict):
         """
         Create a RunSetting from a Dict.

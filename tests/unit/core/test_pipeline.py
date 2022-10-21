@@ -135,7 +135,7 @@ class TestPipeline(unittest.TestCase):
 
         calls_open = [call(os.path.join('test_pipeline', 'StandardScaler.pickle'), 'wb'),
                       call(os.path.join('test_pipeline', 'LinearRegression.pickle'), 'wb'),
-                      call(os.path.join('test_pipeline', 'pipeline.json'), 'w')]
+                      call(os.path.join('test_pipeline', 'pipeline.json'), 'w', encoding="utf8")]
         mock_file.assert_has_calls(calls_open, any_order=True)
         args, kwargs = json_mock.dump.call_args
         assert kwargs["obj"]["id"] == pipeline_json["id"]
@@ -544,6 +544,6 @@ class TestPipeline(unittest.TestCase):
         first_step.lag = pd.Timedelta("1d")
 
         self.pipeline.add(module=first_step)
-        self.pipeline.refit(pd.Timestamp("2000.01.02"), pd.Timestamp("2022.01.02"))
+        self.pipeline.refit(pd.Timestamp("2000.01.02"))
 
-        first_step.refit.assert_called_once_with(pd.Timestamp("2000.01.01"), pd.Timestamp("2022.01.01"))
+        first_step.refit.assert_called_once_with(pd.Timestamp("2000.01.02"))

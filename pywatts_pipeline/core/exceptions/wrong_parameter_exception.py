@@ -8,5 +8,7 @@ class WrongParameterException(Exception):
     """
 
     def __init__(self, message, possible_solution, module):
+        super().__init__()
         self.message = message + " " + possible_solution
         self.module = module
+        super().__init__(self.message)

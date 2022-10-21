@@ -16,8 +16,9 @@ class StartStep(BaseStep):
         self.name = index
         self.index = index
 
-    def get_result(self, start: pd.Timestamp, return_all=False, minimum_data=(0, pd.Timedelta(0))):
-        # TODO return as dict?
+    def get_result(
+        self, start: pd.Timestamp, return_all=False, minimum_data=(0, pd.Timedelta(0))
+    ):
         return self._pack_data(start, minimum_data=minimum_data)
 
     @classmethod
@@ -44,4 +45,3 @@ class StartStep(BaseStep):
         json = super().get_json(fm)
         json["index"] = self.index
         return json
-

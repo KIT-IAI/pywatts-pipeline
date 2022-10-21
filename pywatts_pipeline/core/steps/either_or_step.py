@@ -15,7 +15,7 @@ class EitherOrStep(BaseStep):
         super().__init__(input_steps)
         self.name = "EitherOr"
 
-    def get_result(self, start, minimum_data=(0, pd.Timedelta(0)), return_all=False):
+    def get_result(self, start, return_all=False, minimum_data=(0, pd.Timedelta(0))):
         input_data = self._get_inputs(self.input_steps, start, minimum_data)
         for key, res in input_data.items():
             self.update_buffer(res, key)
@@ -25,7 +25,7 @@ class EitherOrStep(BaseStep):
         for step in input_steps.values():
             inp = step.get_result(start, minimum_data=minimum_data)
             if inp is not None:
-                return {self.name :inp}
+                return {self.name: inp}
         return None
 
     @classmethod
@@ -46,5 +46,5 @@ class EitherOrStep(BaseStep):
         step.last = stored_step["last"]
         return step
 
-    def _should_stop(self, start, end):
-        return self._get_input(start, end) is None
+    def _should_stop(self, start, minimum_data):
+        return self._get_inputs(self.input_steps, start) is None

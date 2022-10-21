@@ -259,22 +259,26 @@ class TestStep(unittest.TestCase):
 
     @patch('pywatts_pipeline.core.steps.step.Step._get_inputs', return_value={"x": 2})
     def test_refit_refit_conditions_false(self, get_inputs_mock):
-        step = Step(self.module_mock, {"x": self.step_mock}, file_manager=None, refit_conditions=[lambda x, y: False],
+        cond = MagicMock()
+        cond.evaluate.return_value = False
+        step = Step(self.module_mock, {"x": self.step_mock}, file_manager=None, refit_conditions=[cond],
                     computation_mode=ComputationMode.Refit)
-        step.refit(pd.Timestamp("2000.01.01"), pd.Timestamp("2020.01.01"))
+        step.refit(pd.Timestamp("2000.01.01"))
         self.module_mock.refit.assert_not_called()
 
     @patch('pywatts_pipeline.core.steps.step.Step._get_inputs')
     def test_refit_refit_conditions_true(self, get_inputs_mock):
+        cond = MagicMock()
+        cond.evaluate.return_value=True
         step = Step(self.module_mock, {"x": self.step_mock},
-                    targets={"target": self.step_mock}, file_manager=None, refit_conditions=[lambda x, y: True],
+                    targets={"target": self.step_mock}, file_manager=None, refit_conditions=[cond],
                     computation_mode=ComputationMode.Refit)
 
         time = pd.date_range('2000-01-01', freq='1H', periods=7)
         da = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})
         get_inputs_mock.side_effect = [{"x": da},  {"target": da}, {"x": da},  {"target": da}]
 
-        step.refit(pd.Timestamp("2000.01.01"), pd.Timestamp("2020.01.01"))
+        step.refit(pd.Timestamp("2000.01.01"))
 
         xr.testing.assert_equal(
             self.module_mock.refit.call_args[1]["x"],
@@ -287,15 +291,19 @@ class TestStep(unittest.TestCase):
 
     @patch('pywatts_pipeline.core.steps.step.Step._get_inputs', )
     def test_multiple_refit_conditions(self, get_inputs_mock):
+        cond_1 = MagicMock()
+        cond_1.evaluate.return_value=False
+        cond_2 = MagicMock()
+        cond_2.evaluate.return_value=True
         step = Step(self.module_mock, {"x": self.step_mock},
                     targets={"target": self.step_mock}, file_manager=None,
-                    refit_conditions=[lambda x, y: False, lambda x, y: True],
+                    refit_conditions=[cond_1, cond_2],
                     computation_mode=ComputationMode.Refit)
         time = pd.date_range('2000-01-01', freq='1H', periods=7)
         da = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})
         get_inputs_mock.side_effect = [{"x": da}, {"target": da}, {"x": da}, {"target": da}, {"x": da}, {"target": da}]
 
-        step.refit(pd.Timestamp("2000.01.01"), pd.Timestamp("2020.01.01"))
+        step.refit(pd.Timestamp("2000.01.01"))
         xr.testing.assert_equal(
             self.module_mock.refit.call_args[1]["x"],
             da

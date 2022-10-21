@@ -41,13 +41,13 @@ class TestSummaryStep(unittest.TestCase):
     def test_load(self):
         stored_step = {
             "target_ids": {},
-            "input_ids": {2  : "input"},
+            "input_ids": {2: "input"},
             "id": -1,
             'module': 'pywatts_pipeline.core.steps.summary_step',
             "class": "SummaryStep",
             "name": "test"}
 
-        summary = SummaryStep.load(stored_step,{"input":self.step_mock}, {}, self.module_mock, self.fm_mock)
+        summary = SummaryStep.load(stored_step, {"input": self.step_mock}, {}, self.module_mock, self.fm_mock)
         self.assertEqual(len(summary.input_steps), 1)
         self.assertEqual(summary.input_steps["input"], self.step_mock)
         self.assertEqual(summary.module, self.module_mock)
@@ -57,10 +57,15 @@ class TestSummaryStep(unittest.TestCase):
         fm_mock = MagicMock()
         json = self.summary.get_json(fm_mock)
 
-        self.assertEqual(json, {
-            "target_ids": {},
-            "input_ids": {2  : "input"},
-            "id": -1,
-            'module': 'pywatts_pipeline.core.steps.summary_step',
-            "class": "SummaryStep",
-            "name": "test"}, json)
+        self.assertEqual(json, {'callbacks': [],
+                                'class': 'SummaryStep',
+                                'condition': None,
+                                'default_run_setting': {'computation_mode': 4},
+                                'id': -1,
+                                'input_ids': {2: 'input'},
+                                'last': True,
+                                'method': None,
+                                'module': 'pywatts_pipeline.core.steps.summary_step',
+                                'name': 'test',
+                                'refit_conditions': [],
+                                'target_ids': {}}, json)
