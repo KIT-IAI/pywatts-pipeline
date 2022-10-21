@@ -50,8 +50,9 @@ class BaseStep(ABC):
         self.buffer: Dict[str, xr.DataArray] = {}
 
     @abstractmethod
-    def get_result(self, start: pd.Timestamp,
-                   return_all=False, minimum_data=(0, pd.Timedelta(0))):
+    def get_result(
+        self, start: pd.Timestamp, return_all=False, minimum_data=(0, pd.Timedelta(0))
+    ):
         """
         This method is responsible for providing the result of this step.
         Therefore,

@@ -5,7 +5,9 @@ from typing import Tuple, Dict, Union, List, Callable
 import xarray as xr
 
 from pywatts_pipeline.core.callbacks import BaseCallback
-from pywatts_pipeline.core.exceptions.step_creation_exception import StepCreationException
+from pywatts_pipeline.core.exceptions.step_creation_exception import (
+    StepCreationException,
+)
 from pywatts_pipeline.core.pipeline import Pipeline
 from pywatts_pipeline.core.steps.base_step import BaseStep
 from pywatts_pipeline.core.steps.either_or_step import EitherOrStep
@@ -107,7 +109,6 @@ class StepFactory:
         )
 
         if len(target_steps) > 1:
-            # TODO why it is necessary to define here get_result_steps?
             step.last = False
             for target in target_steps:
                 r_step = step.get_result_step(target)
