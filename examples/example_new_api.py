@@ -97,7 +97,7 @@ if __name__ == "__main__":
                                        # "ARIMA": "ARIMA",
                                        # "TrendForecaster": "TrendForecaster"
                                         })
-    pipeline.assembled_steps[-3].method = "update_predict"
+    pipeline.assembled_steps[-3].method = "predict"
     test = data.iloc[6000:6100, :]
     result = pipeline.test(data=test, reset=True)
 

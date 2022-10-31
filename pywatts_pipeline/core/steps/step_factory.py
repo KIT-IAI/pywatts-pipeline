@@ -38,6 +38,7 @@ class StepFactory:
         refit_conditions,
         #  retrain_batch,
         lag,
+        pipeline
     ):
         """
         Creates a appropriate step for the current situation.
@@ -74,7 +75,7 @@ class StepFactory:
         # TODO needs to check that inputs are unambigious -> I.e. check that each input has only one output
         self._check_ins(kwargs)
 
-        input_steps = self.check_and_extract_inputs(
+        input_steps = self._check_and_extract_inputs(
             kwargs, module, pipeline, method
         )
 
@@ -137,10 +138,10 @@ class StepFactory:
                     getattr(module, method)).parameters.keys()
             fit_arguments = inspect.signature(module.fit).parameters.keys()
             in_keys = (set(transform_arguments) | set(fit_arguments)) & set(kwargs.keys())
-            input_steps: Dict[str, BaseStep] = {key: self.check_in(kwargs[key], pipeline=pipeline) for key in kwargs}
+            input_steps: Dict[str, BaseStep] = {key: self._check_in(kwargs[key], pipeline=pipeline) for key in kwargs}
     
         else:
-            input_steps: Dict[str, BaseStep] = {key: self.check_in(kwargs[key], pipeline=pipeline)
+            input_steps: Dict[str, BaseStep] = {key: self._check_in(kwargs[key], pipeline=pipeline)
                                             for key in kwargs.keys()}
     
     
@@ -236,11 +237,9 @@ class StepFactory:
 
         """
         pipeline = self._check_ins(kwargs)
-        input_steps, target_steps = self._check_and_extract_inputs(
+        input_steps = self._check_and_extract_inputs(
             kwargs, module, pipeline
         )
-        step = SummaryStep(module, input_steps, pipeline.file_manager, )
-
         step = SummaryStep(
             module,
             input_steps,

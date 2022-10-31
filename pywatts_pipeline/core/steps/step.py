@@ -73,7 +73,6 @@ class Step(BaseStep):
                  lag=pd.Timedelta(hours=24)):
         super().__init__(
             input_steps,
-            targets,
             condition=condition,
             computation_mode=computation_mode,
             name=module.name if hasattr(module, "name") else module.__class__.__name__,
@@ -287,7 +286,7 @@ class Step(BaseStep):
         self._transform(in_data)
 
     def _get_inputs(self, input_steps, start, minimum_data=(0, pd.Timedelta(0))):
-        min_data_module = self.module.get_min_data()
+        min_data_module = self.module.get_min_data() if hasattr(self.module, "get_min_data") else 0
         if isinstance(min_data_module, (int, np.integer)):
             minimum_data = minimum_data[0] + min_data_module, minimum_data[1]
         else:

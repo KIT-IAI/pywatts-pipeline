@@ -373,7 +373,7 @@ class Pipeline(BaseTransformer):
             step = StepFactory().create_step(module=estimator, kwargs=kwargs,
                                          condition=condition,
                                          callbacks=callbacks,
-                                         computation_mode=computation_mode, batch_size=batch_size,
+                                         computation_mode=computation_mode,
                                          refit_conditions=refit_conditions if isinstance(refit_conditions, list) else [
                                              refit_conditions
                                          ],
@@ -409,7 +409,6 @@ class Pipeline(BaseTransformer):
                                              callbacks=node.callbacks,
                                              condition=node.condition,
                                                  method=node.method,
-                                             batch_size=None,
                                              computation_mode=node.default_run_setting.computation_mode,
                                              refit_conditions=node.refit_conditions,
                                              #retrain_batch =node.retrain_batch,
