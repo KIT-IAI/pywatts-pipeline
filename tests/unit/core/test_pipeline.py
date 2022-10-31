@@ -38,7 +38,7 @@ pipeline_json = {'id': 1,
                             'module': 'pywatts_pipeline.core.steps.start_step',
                             'name': 'input',
                             'target_ids': {}},
-                           {'batch_size': None,
+                           {'method': None,
                             'callbacks': [],
                             'class': 'Step',
                             'default_run_setting': {'computation_mode': 4},
@@ -51,7 +51,7 @@ pipeline_json = {'id': 1,
                             'name': 'StandardScaler',
                             'target_ids': {},
                             'refit_conditions': []},
-                           {'batch_size': None,
+                           {'method': None,
                             'callbacks': [],
                             'class': 'Step',
                             'default_run_setting': {'computation_mode': 4},
@@ -135,7 +135,7 @@ class TestPipeline(unittest.TestCase):
 
         calls_open = [call(os.path.join('test_pipeline', 'StandardScaler.pickle'), 'wb'),
                       call(os.path.join('test_pipeline', 'LinearRegression.pickle'), 'wb'),
-                      call(os.path.join('test_pipeline', 'pipeline.json'), 'w')]
+                      call(os.path.join('test_pipeline', 'pipeline.json'), 'w', encoding="utf8")]
         mock_file.assert_has_calls(calls_open, any_order=True)
         args, kwargs = json_mock.dump.call_args
         assert kwargs["obj"]["id"] == pipeline_json["id"]
@@ -200,9 +200,10 @@ class TestPipeline(unittest.TestCase):
 
         self.pipeline.train(
             pd.DataFrame({"test": [1, 2, 2, 3, 4], "test2": [2, 2, 2, 2, 2], "target": [2, 2, 4, 4, -5]},
-                         index=pd.DatetimeIndex(pd.date_range('2000-01-01', freq='24H', periods=5))))
+                         index=pd.DatetimeIndex(pd.date_range('2000-01-01', freq='24H', periods=5))),
+        summary=False)
 
-    @patch('pywatts_pipeline.core.pipeline.Pipeline._create_summary')
+    @patch('pywatts_pipeline.core.pipeline.Pipeline.create_summary')
     @patch('pywatts_pipeline.core.pipeline.FileManager')
     def test_add_pipeline_to_pipeline_and_train(self, fm_mock, create_summary_mock):
         sub_pipeline = Pipeline()
@@ -429,7 +430,8 @@ class TestPipeline(unittest.TestCase):
         self.pipeline.add(module=second_step)
 
         self.pipeline.test(pd.DataFrame({"test": [1, 2, 2, 3, 4], "test2": [2, 2, 2, 2, 2]},
-                                        index=pd.DatetimeIndex(pd.date_range('2000-01-01', freq='24H', periods=5))))
+                                        index=pd.DatetimeIndex(pd.date_range('2000-01-01', freq='24H', periods=5))),
+                           summary=False)
 
         first_step.get_result.assert_called_once_with(None, return_all=True)
         second_step.get_result.assert_called_once_with(None, return_all=True)
@@ -442,8 +444,9 @@ class TestPipeline(unittest.TestCase):
         first_step.reset.assert_called_once()
         second_step.reset.assert_called_once()
 
+    @patch("builtins.open")
     @patch('pywatts_pipeline.core.pipeline.FileManager')
-    def test_train(self, fmmock):
+    def test_train(self, fmmock, open_mock):
         # Add some steps to the pipeline
         time = pd.date_range('2000-01-01', freq='1H', periods=7)
 
@@ -541,6 +544,6 @@ class TestPipeline(unittest.TestCase):
         first_step.lag = pd.Timedelta("1d")
 
         self.pipeline.add(module=first_step)
-        self.pipeline.refit(pd.Timestamp("2000.01.02"), pd.Timestamp("2022.01.02"))
+        self.pipeline.refit(pd.Timestamp("2000.01.02"))
 
-        first_step.refit.assert_called_once_with(pd.Timestamp("2000.01.01"), pd.Timestamp("2022.01.01"))
+        first_step.refit.assert_called_once_with(pd.Timestamp("2000.01.02"))

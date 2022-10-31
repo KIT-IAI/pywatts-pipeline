@@ -8,8 +8,10 @@ import pandas as pd
 import xarray as xr
 
 from pywatts_pipeline.core.util.computation_mode import ComputationMode
-from pywatts_pipeline.core.exceptions.kind_of_transform_does_not_exist_exception import KindOfTransformDoesNotExistException, \
-    KindOfTransform
+from pywatts_pipeline.core.exceptions.kind_of_transform_does_not_exist_exception import (
+    KindOfTransformDoesNotExistException,
+    KindOfTransform,
+)
 from pywatts_pipeline.core.util.filemanager import FileManager
 from pywatts_pipeline.core.callbacks import BaseCallback
 
@@ -59,7 +61,7 @@ class Base(ABC):
         """
 
     @abstractmethod
-    def transform(self, **kwargs: Dict[str: xr.DataArray]) -> xr.DataArray:
+    def transform(self, **kwargs: Dict[str : xr.DataArray]) -> xr.DataArray:
         """
         Transforms the input.
 
@@ -82,10 +84,12 @@ class Base(ABC):
         :return: The transformed input
         """
         # if this method is not overwritten and hence not implemented, raise an exception
-        raise KindOfTransformDoesNotExistException(f"The module {self.name} does not have a inverse transformation",
-                                                   KindOfTransform.INVERSE_TRANSFORM)
+        raise KindOfTransformDoesNotExistException(
+            f"The module {self.name} does not have a inverse transformation",
+            KindOfTransform.INVERSE_TRANSFORM,
+        )
 
-    def predict_proba(self, *kwargs: Dict[str: xr.DataArray]) -> xr.DataArray:
+    def predict_proba(self, *kwargs: Dict[str : xr.DataArray]) -> xr.DataArray:
         """
         Performs the probabilistic transformation if available.
         Note for developers of modules: if this method is implemented, the flag "self.has_predict_proba" must be set to
@@ -100,7 +104,7 @@ class Base(ABC):
         # if this method is not overwritten and hence not implemented, raise an exception
         raise KindOfTransformDoesNotExistException(
             f"The module {self.name} does not have a probablistic transformation",
-            KindOfTransform.PROBABILISTIC_TRANSFORM
+            KindOfTransform.PROBABILISTIC_TRANSFORM,
         )
 
     def save(self, fm: FileManager) -> Dict:
@@ -112,10 +116,12 @@ class Base(ABC):
         :return: A dictionary containing the information needed for restoring the module
         :rtype:Dict
         """
-        return {"params": self.get_params(),
-                "name": self.name,
-                "class": self.__class__.__name__,
-                "module": self.__module__}
+        return {
+            "params": self.get_params(),
+            "name": self.name,
+            "class": self.__class__.__name__,
+            "module": self.__module__,
+        }
 
     @classmethod
     def load(cls, load_information: Dict):
@@ -139,20 +145,23 @@ class Base(ABC):
         return self.fit(**kwargs)
 
     def get_min_data(self):
+        """
+        Returns how much data are at least needed by that transformer
+        """
         return 0
 
-    def __call__(self,
-                 use_inverse_transform: bool = False,
-                 use_prob_transform: bool = False,
-                 callbacks: List[BaseCallback, Callable[[Dict[str, xr.DataArray]], None]] = [],
-                 condition: Optional[Callable] = None,
-                 computation_mode: ComputationMode = ComputationMode.Default,
-                 batch_size: Optional[pd.Timedelta] = None,
-                 refit_conditions: List[Union[Callable, bool]] = [],
-                 lag: Optional[int] = pd.Timedelta(hours=0),
-                 retrain_batch: Optional[int] = pd.Timedelta(hours=24),
-                 **kwargs: Union[StepInformation, Tuple[StepInformation, ...]]
-                 ) -> StepInformation:
+    def __call__(
+        self,
+        method=None,
+        callbacks: List[BaseCallback, Callable[[Dict[str, xr.DataArray]], None]] = None,
+        condition: Optional[Callable] = None,
+        computation_mode: ComputationMode = ComputationMode.Default,
+        batch_size: Optional[pd.Timedelta] = None,
+        refit_conditions: List[Union[Callable, bool]] = None,
+        lag: Optional[int] = pd.Timedelta(hours=0),
+        retrain_batch: Optional[int] = pd.Timedelta(hours=24),
+        **kwargs: Union[StepInformation, Tuple[StepInformation, ...]],
+    ) -> StepInformation:
         """
         Adds this module to pipeline by creating step and step information
 
@@ -193,18 +202,18 @@ class Base(ABC):
 
         from pywatts_pipeline.core.steps.step_factory import StepFactory
 
-        return StepFactory().create_step(self, kwargs=kwargs,
-                                         use_inverse_transform=use_inverse_transform,
-                                         use_predict_proba=use_prob_transform,
-                                         condition=condition,
-                                         callbacks=callbacks,
-                                         computation_mode=computation_mode, batch_size=batch_size,
-                                         refit_conditions=refit_conditions if isinstance(refit_conditions, list) else [
-                                             refit_conditions
-                                         ],
-                                    #     retrain_batch=retrain_batch,
-                                         lag=lag
-                                         )
+        return StepFactory().create_step(
+            self,
+            kwargs=kwargs,
+            method=method,
+            condition=condition,
+            callbacks=callbacks if callbacks is not None else [],
+            computation_mode=computation_mode,
+            refit_conditions=[] if refit_conditions is None else refit_conditions
+            if isinstance(refit_conditions, list) else [refit_conditions],
+            #     retrain_batch=retrain_batch,
+            lag=lag,
+        )
 
 
 class BaseTransformer(Base, ABC):

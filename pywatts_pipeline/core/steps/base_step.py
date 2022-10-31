@@ -9,8 +9,11 @@ import xarray as xr
 from pywatts_pipeline.core.util.computation_mode import ComputationMode
 from pywatts_pipeline.core.util.filemanager import FileManager
 from pywatts_pipeline.core.util.run_setting import RunSetting
-from pywatts_pipeline.utils._xarray_time_series_utils import _get_time_indexes
-from pywatts_pipeline.core.summary.summary_object import SummaryObjectList, SummaryCategory, SummaryObject
+from pywatts_pipeline.utils._xarray_time_series_utils import _get_time_indexes, get_last
+from pywatts_pipeline.core.summary.summary_object import (
+    SummaryObjectList,
+    SummaryCategory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,27 +31,36 @@ class BaseStep(ABC):
     :type computation_mode: ComputationMode
     """
 
-    def __init__(self, input_steps: Optional[Dict[str, "BaseStep"]] = None,
-                 targets: Optional[Dict[str, "BaseStep"]] = None, condition=None,
-                 computation_mode=ComputationMode.Default, name="BaseStep"):
+    def __init__(
+        self,
+        input_steps: Optional[Dict[str, "BaseStep"]] = None,
+        targets: Optional[Dict[str, "BaseStep"]] = None,
+        condition=None,
+        computation_mode=ComputationMode.Default,
+        name="BaseStep",
+    ):
         self.default_run_setting = RunSetting(computation_mode=computation_mode)
         self.current_run_setting = self.default_run_setting.clone()
-        self.input_steps: Dict[str, "BaseStep"] = dict() if input_steps is None else input_steps
-        self.targets: Dict[str, "BaseStep"] = dict() if targets is None else targets
-        self.condition = condition
-
+        self.input_steps: Dict[str, "BaseStep"] = ({} if input_steps is None else input_steps)
+        self.targets: Dict[str, "BaseStep"] = {} if targets is None else targets
         self.name = name
-
         self.id = -1
-        self.finished = False
         self.last = True
-        self._current_end = None
         self.buffer: Dict[str, xr.DataArray] = {}
-        self.training_time = SummaryObjectList(self.name + " Training Time", category=SummaryCategory.FitTime)
-        self.transform_time = SummaryObjectList(self.name + " Transform Time", category=SummaryCategory.TransformTime)
 
-    def get_result(self, start: pd.Timestamp, buffer_element: str = None,
-                   return_all=False, minimum_data=(0, pd.Timedelta(0))):
+        self.condition = condition
+        self.transform_time = SummaryObjectList(
+            self.name + " Transform Time", category=SummaryCategory.TransformTime
+        )
+        self.training_time = SummaryObjectList(
+            self.name + " Training Time", category=SummaryCategory.FitTime
+        )
+        self.finished = False
+
+    @abstractmethod
+    def get_result(
+        self, start: pd.Timestamp, return_all=False, minimum_data=(0, pd.Timedelta(0))
+    ):
         """
         This method is responsible for providing the result of this step.
         Therefore,
@@ -59,58 +71,20 @@ class BaseStep(ABC):
         :type start: pd.Timedstamp
         :param end: The end date of the requested results of the step (exclusive)
         :type end: Optional[pd.Timestamp]
-        :param buffer_element: if the buffer of the step contains multiple results, this determines the result which is
-                               returned.
-        :type buffer_element: str
         :param return_all: Flag that indicates if all results in the buffer should be returned.
         :type return_all: bool
         :return: The resulting data or None if no data are calculated
         """
         # Check if step should be executed.
-        if self._should_stop(start, minimum_data):
-            return None
 
-        # Only execute the module if the step is not finished and the results are not yet calculated
-        if not self.finished:
-            self._compute(start, minimum_data)
-
-            # Only call callbacks if the step is finished
-            if self.finished:
-                self._callbacks()
-
-        return self._pack_data(start, buffer_element, return_all=return_all, minimum_data=minimum_data)
-
-    def _compute(self, start, minimum_data) -> Dict[str, xr.DataArray]:
-        pass
-
-    def further_elements(self, counter: pd.Timestamp) -> bool:
-        """
-        Checks if there exist at least one data for the time after counter.
-
-        :param counter: The timestampe for which it should be tested if there exist further data after it.
-        :type counter: pd.Timestamp
-        :return: True if there exist further data
-        :rtype: bool
-        """
-        if not self.buffer or all(
-                [counter < b.indexes[_get_time_indexes(self.buffer)[0]][-1] for b in self.buffer.values()]):
-            return True
-        for input_step in self.input_steps.values():
-            if not input_step.further_elements(counter):
-                return False
-        for target_step in self.targets.values():
-            if not target_step.further_elements(counter):
-                return False
-        return True
-
-    def _pack_data(self, start, buffer_element=None, return_all=False, minimum_data=(0, pd.Timedelta(0))):
+    def _pack_data(self, start, return_all=False, minimum_data=(0, pd.Timedelta(0))):
         # Provide requested data
-        # TODO hacky
         if len(self.buffer) == 0:
             return None
-        time_index = _get_time_indexes(self.buffer)
+        time_index = _get_time_indexes(self.buffer, get_all=False)
+
         if start:
-            index = list(self.buffer.values())[0].indexes[time_index[0]]
+            index = list(self.buffer.values())[0].indexes[time_index]
             if len(index) > 1:
                 freq = index[1] - index[0]
             else:
@@ -118,49 +92,30 @@ class BaseStep(ABC):
             start = start - pd.Timedelta(minimum_data[0] * freq) - minimum_data[1]
             # If end is not set, all values should be considered. Thus we add a small timedelta to the last index entry.
             # After sel copy is not needed, since it returns a new array.
-            if buffer_element is not None:
-                return self.buffer[buffer_element].sel(
-                    **{time_index[0]: index[(index >= start)]})
-            elif return_all:
-                return {key: b.sel(**{time_index[0]: index[(index >= start)]}) for
-                        key, b in self.buffer.items()}
-            else:
-                return list(self.buffer.values())[0].sel(
-                    **{time_index[0]: index[(index >= start)]})
+            if return_all:
+                return {
+                    key: b.sel(**{time_index: index[(index >= start)]})
+                    for key, b in self.buffer.items()
+                }
+            return list(self.buffer.values())[0].sel(
+                    **{time_index: index[(index >= start)]}
+                )
+        self.finished = True
+        if return_all:
+            return copy.deepcopy(self.buffer)
+        return list(self.buffer.values())[0].copy()
+
+    def update_buffer(self, x: xr.DataArray, index):
+        if len(x) == 0:
+            pass
+        elif index not in self.buffer:
+            self.buffer[index] = x
         else:
-            self.finished = True
-            if buffer_element is not None:
-                return self.buffer[buffer_element].copy()
-            elif return_all:
-                return copy.deepcopy(self.buffer)
-            else:
-                return list(self.buffer.values())[0].copy()
-
-    def _transform(self, input_step):
-        pass
-
-    def _fit(self, input_step, target_step):
-        pass
-
-    def _callbacks(self):
-        pass
-
-    def _post_transform(self, result):
-        if not isinstance(result, dict):
-            result = {self.name: result}
-
-        # TODO This does not work if we shift something in the wrong direction... Compare ClockShift with -1
-        if not self.buffer:
-            # TODO very hacky...
-            if len(result) >0 and len(list(result.values())[0]) > 0:
-                self.buffer = result
-        else:
-            # Time dimension is mandatory, consequently there dim has to exist
-            dim = _get_time_indexes(result)[0]
-            for key in self.buffer.keys():
-                last = self.buffer[key][dim].values[-1]
-                self.buffer[key] = xr.concat([self.buffer[key], result[key][result[key][dim] > last]], dim=dim)
-        return result
+            dim = _get_time_indexes(self.buffer[index], get_all=False)
+            last = get_last(self.buffer[index])
+            self.buffer[index] = xr.concat(
+                [self.buffer[index], x[x[dim] > last]], dim=dim
+            )
 
     def get_json(self, fm: FileManager) -> Dict:
         """
@@ -179,7 +134,7 @@ class BaseStep(ABC):
             "class": self.__class__.__name__,
             "name": self.name,
             "last": self.last,
-            "default_run_setting": self.default_run_setting.save()
+            "default_run_setting": self.default_run_setting.save(),
         }
 
     @classmethod
@@ -196,24 +151,33 @@ class BaseStep(ABC):
         :return: The restored step.
         """
 
-    def _get_input(self, start, minimum_data=(0, pd.Timedelta(0))):
-        return None
-
-    def _get_target(self, start, minimum_data=(0, pd.Timedelta(0))):
-        return None
+    def _get_inputs(self, input_steps, start, minimum_data=(0, pd.Timedelta(0))):
+        return {}
 
     def _should_stop(self, start, minimum_data) -> bool:
         # Fetch input and target data
-        input_result = self._get_input(start, minimum_data=minimum_data)
-        target_result = self._get_target(start, minimum_data=minimum_data)
+        input_result = self._get_inputs(
+            self.input_steps, start, minimum_data=minimum_data
+        )
+        target_result = self._get_inputs(self.targets, start, minimum_data=minimum_data)
 
         # Check if either the condition is True or some of the previous steps stopped (return_value is None)
-        return (self.condition is not None and not self.condition(input_result, target_result)) or \
-               self._input_stopped(input_result) or self._input_stopped(target_result)
+        return (
+            (
+                self.condition is not None
+                and not self.condition(input_result, target_result)
+            )
+            or self._input_stopped(input_result)
+            or self._input_stopped(target_result)
+        )
 
     @staticmethod
     def _input_stopped(input_data):
-        return (input_data is not None and len(input_data) > 0 and any(map(lambda x: x is None, input_data.values())))
+        return (
+            input_data is not None
+            and len(input_data) > 0
+            and any(map(lambda x: x is None, input_data.values()))
+        )
 
     def reset(self, keep_buffer=False):
         """
@@ -235,11 +199,3 @@ class BaseStep(ABC):
         :type computation_mode: ComputationMode
         """
         self.current_run_setting = self.default_run_setting.update(run_setting)
-
-    def get_summaries(self, start) -> [SummaryObject]:
-        """
-        Returns the fit times as summaries.
-        :return: The summary as markdown formatted string
-        :rtype: Str
-        """
-        return [self.transform_time, self.training_time]

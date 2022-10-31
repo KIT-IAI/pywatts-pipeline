@@ -12,3 +12,4 @@ class NotFittedException(Exception):
         self.message = message
         self.module_name = module
         self.step_name = step
+        super().__init__(self.message)

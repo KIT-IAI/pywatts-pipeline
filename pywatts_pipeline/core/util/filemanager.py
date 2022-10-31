@@ -7,7 +7,7 @@ from pywatts_pipeline.core.exceptions.io_exceptions import IOException
 
 logger = logging.getLogger()
 
-ALLOWED_FILES = ["png", "csv", "xlsx", "pickle", "tex", "json", "h5", "pt", "md"]
+ALLOWED_FILES = ["png", "csv", "xlsx", "pickle", "tex", "json", "h5", "pt", "md", "npy"]
 
 
 class FileManager:
@@ -58,7 +58,9 @@ class FileManager:
             logger.error(message)
             raise IOException(message)
         if os.path.split(filename)[0] != "":
-            logger.warning("Remove head of %s, since this contains path informations.", filename)
+            logger.warning(
+                "Remove head of %s, since this contains path informations.", filename
+            )
             filename = os.path.split(filename)[1]
         if path is not None:
             path = os.path.join(self.path, path)
@@ -69,7 +71,11 @@ class FileManager:
         return_path = os.path.join(path, filename)
         if os.path.isfile(return_path):
             filename, extension = os.path.splitext(return_path)
-            number = len(glob.glob(f'{filename}*{extension}'))
-            logger.info("File %s already exists. We appended %s to the name", return_path, number + 1)
+            number = len(glob.glob(f"{filename}*{extension}"))
+            logger.info(
+                "File %s already exists. We appended %s to the name",
+                return_path,
+                number + 1,
+            )
             return_path = f"{filename}_{number + 1}.{extension}"
         return return_path

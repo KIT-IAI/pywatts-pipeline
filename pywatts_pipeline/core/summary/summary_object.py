@@ -6,6 +6,7 @@ class SummaryCategory(IntEnum):
     """
     Category for Summaries.
     """
+
     Summary = 1
     TransformTime = 2
     FitTime = 3
@@ -24,8 +25,12 @@ class SummaryObject(ABC):
     :type additional_information: str
     """
 
-    def __init__(self, name: str, category: SummaryCategory = SummaryCategory.Summary,
-                 additional_information: str = ""):
+    def __init__(
+        self,
+        name: str,
+        category: SummaryCategory = SummaryCategory.Summary,
+        additional_information: str = "",
+    ):
         self.k_v = {}
         self.name = name
         self.category = category
@@ -68,4 +73,3 @@ class SummaryObjectTable(SummaryObject):
     :param additional_information: A string containing additional information that should be stored in the summary.
     :type additional_information: str
     """
-

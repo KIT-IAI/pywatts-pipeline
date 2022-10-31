@@ -14,6 +14,7 @@ from pywatts_pipeline.core.util.run_setting import RunSetting
 class TestStep(unittest.TestCase):
     def setUp(self) -> None:
         self.module_mock = MagicMock()
+        self.module_mock.transform
         self.module_mock.name = "test"
         self.step_mock = MagicMock()
         self.step_mock.id = 2
@@ -46,7 +47,7 @@ class TestStep(unittest.TestCase):
             any_order=True)
         self.assertEqual(json, {
             "target_ids": {},
-            'batch_size': None,
+            'method': None,
             "input_ids": {},
             "id": -1,
             'default_run_setting': {'computation_mode': 4},
@@ -84,7 +85,7 @@ class TestStep(unittest.TestCase):
             # Same as for test_load.
             "input_ids": {},
             "id": -1,
-            'batch_size': None,
+            'method': None,
             'default_run_setting': {'computation_mode': 4},
             "refit_conditions": [os.path.join("folder", "test_refit_conditions.pickle")],
             "module": "pywatts_pipeline.core.steps.step",
@@ -92,7 +93,6 @@ class TestStep(unittest.TestCase):
             "name": "test",
             'callbacks': [],
             "last": True,
-
             'condition': None}, json),
 
         self.assertEqual(reloaded_step.module, self.module_mock)
@@ -100,7 +100,7 @@ class TestStep(unittest.TestCase):
         cloudpickle_mock.load.assert_called_once_with(open_mock().__enter__.return_value)
         cloudpickle_mock.dump.assert_called_once_with(refit_conditions_mock, open_mock().__enter__.return_value)
 
-    @patch("pywatts_pipeline.core.steps.base_step._get_time_indexes", return_value=["time"])
+    @patch("pywatts_pipeline.core.steps.base_step._get_time_indexes", return_value="time")
     @patch("pywatts_pipeline.core.steps.base_step.xr")
     def test_transform_batch_with_existing_buffer(self, xr_mock, *args):
         # Check that data in batch learning are concatenated
@@ -161,35 +161,6 @@ class TestStep(unittest.TestCase):
 
         xr.testing.assert_equal(da, self.module_mock.transform.call_args[1]["x"])
 
-    def test_further_elements_input_false(self):
-        input_step = MagicMock()
-        input_step.further_elements.return_value = False
-        time = pd.date_range('2000-01-01', freq='1H', periods=7)
-        step = Step(self.module_mock, {"x": input_step}, file_manager=MagicMock())
-        step.buffer = {"STEP": xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})}
-
-        result = step.further_elements(pd.Timestamp("2000.12.12"))
-        input_step.further_elements.assert_called_once_with(pd.Timestamp("2000.12.12"))
-        self.assertFalse(result)
-
-    def test_further_elements_target_false(self):
-        target_step = MagicMock()
-        target_step.further_elements.return_value = False
-        time = pd.date_range('2000-01-01', freq='1H', periods=7)
-        step = Step(self.module_mock, {"x": self.step_mock}, targets={"target": target_step}, file_manager=MagicMock())
-        step.buffer = {"STEP": xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})}
-
-        result = step.further_elements(pd.Timestamp("2000.12.12"))
-        target_step.further_elements.assert_called_once_with(pd.Timestamp("2000.12.12"))
-        self.assertFalse(result)
-
-    def test_further_elements_already_buffered(self):
-        time = pd.date_range('2000-01-01', freq='24H', periods=7)
-        step = Step(self.module_mock, {"x": self.step_mock}, file_manager=MagicMock())
-        step.buffer = {"STEP": xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})}
-        result = step.further_elements(pd.Timestamp("2000-01-05"))
-        self.step_mock.further_elements.assert_not_called()
-        self.assertEqual(result, True)
 
     def test_input_finished(self):
         input_dict = {'input_data': None}
@@ -221,11 +192,11 @@ class TestStep(unittest.TestCase):
 
     def test_load(self):
         step_config = {
-            'batch_size': None,
             "target_ids": {},
             "input_ids": {2: 'x'},
             'default_run_setting': {'computation_mode': 3},
             "id": -1,
+            'method': None,
             "module": "pywatts_pipeline.core.steps.step",
             "class": "Step",
             "condition": None,
@@ -244,14 +215,14 @@ class TestStep(unittest.TestCase):
     def test_get_json(self):
         step = Step(self.module_mock, self.step_mock, None)
         json = step.get_json("file")
-        self.assertEqual({'batch_size': None,
-                          'callbacks': [],
+        self.assertEqual({'callbacks': [],
                           'class': 'Step',
                           'default_run_setting': {'computation_mode': 4},
                           'condition': None,
                           'id': -1,
                           'input_ids': {},
                           'last': True,
+                          'method': None,
                           'module': 'pywatts_pipeline.core.steps.step',
                           'name': 'test',
                           'target_ids': {},
@@ -286,29 +257,28 @@ class TestStep(unittest.TestCase):
         assert step._should_stop(None, (0, pd.Timedelta("0h"))) == False
         assert step.finished == False
 
-    @patch('pywatts_pipeline.core.steps.step.Step._get_target', return_value={"target": 1})
-    @patch('pywatts_pipeline.core.steps.step.Step._get_input', return_value={"x": 2})
-    @patch('pywatts_pipeline.core.steps.step.isinstance', side_effect=[True, False, True])
-    def test_refit_refit_conditions_false(self, isinstance_mock, get_input_mock, get_target_mock):
-        step = Step(self.module_mock, {"x": self.step_mock}, file_manager=None, refit_conditions=[lambda x, y: False],
+    @patch('pywatts_pipeline.core.steps.step.Step._get_inputs', return_value={"x": 2})
+    def test_refit_refit_conditions_false(self, get_inputs_mock):
+        cond = MagicMock()
+        cond.evaluate.return_value = False
+        step = Step(self.module_mock, {"x": self.step_mock}, file_manager=None, refit_conditions=[cond],
                     computation_mode=ComputationMode.Refit)
-        step.refit(pd.Timestamp("2000.01.01"), pd.Timestamp("2020.01.01"))
+        step.refit(pd.Timestamp("2000.01.01"))
         self.module_mock.refit.assert_not_called()
 
-    @patch('pywatts_pipeline.core.steps.step.Step._get_target')
-    @patch('pywatts_pipeline.core.steps.step.Step._get_input')
-    @patch('pywatts_pipeline.core.steps.step.isinstance', side_effect=[True, False, True])
-    def test_refit_refit_conditions_true(self, isinstance_mock, get_input_mock, get_target_mock):
+    @patch('pywatts_pipeline.core.steps.step.Step._get_inputs')
+    def test_refit_refit_conditions_true(self, get_inputs_mock):
+        cond = MagicMock()
+        cond.evaluate.return_value=True
         step = Step(self.module_mock, {"x": self.step_mock},
-                    targets={"target": self.step_mock}, file_manager=None, refit_conditions=[lambda x, y: True],
+                    targets={"target": self.step_mock}, file_manager=None, refit_conditions=[cond],
                     computation_mode=ComputationMode.Refit)
 
         time = pd.date_range('2000-01-01', freq='1H', periods=7)
         da = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})
-        get_input_mock.return_value = {"x": da}
-        get_target_mock.return_value = {"target": da}
+        get_inputs_mock.side_effect = [{"x": da},  {"target": da}, {"x": da},  {"target": da}]
 
-        step.refit(pd.Timestamp("2000.01.01"), pd.Timestamp("2020.01.01"))
+        step.refit(pd.Timestamp("2000.01.01"))
 
         xr.testing.assert_equal(
             self.module_mock.refit.call_args[1]["x"],
@@ -319,20 +289,21 @@ class TestStep(unittest.TestCase):
             da
         )
 
-    @patch('pywatts_pipeline.core.steps.step.Step._get_target',)
-    @patch('pywatts_pipeline.core.steps.step.Step._get_input', )
-    @patch('pywatts_pipeline.core.steps.step.isinstance', side_effect=[True, False, True, False, True])
-    def test_multiple_refit_conditions(self, isinstance_mock, get_input_mock, get_target_mock):
+    @patch('pywatts_pipeline.core.steps.step.Step._get_inputs', )
+    def test_multiple_refit_conditions(self, get_inputs_mock):
+        cond_1 = MagicMock()
+        cond_1.evaluate.return_value=False
+        cond_2 = MagicMock()
+        cond_2.evaluate.return_value=True
         step = Step(self.module_mock, {"x": self.step_mock},
                     targets={"target": self.step_mock}, file_manager=None,
-                    refit_conditions=[lambda x, y: False, lambda x, y: True],
+                    refit_conditions=[cond_1, cond_2],
                     computation_mode=ComputationMode.Refit)
         time = pd.date_range('2000-01-01', freq='1H', periods=7)
         da = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})
-        get_input_mock.return_value = {"x": da}
-        get_target_mock.return_value = {"target": da}
+        get_inputs_mock.side_effect = [{"x": da}, {"target": da}, {"x": da}, {"target": da}, {"x": da}, {"target": da}]
 
-        step.refit(pd.Timestamp("2000.01.01"), pd.Timestamp("2020.01.01"))
+        step.refit(pd.Timestamp("2000.01.01"))
         xr.testing.assert_equal(
             self.module_mock.refit.call_args[1]["x"],
             da

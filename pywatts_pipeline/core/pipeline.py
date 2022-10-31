@@ -21,18 +21,30 @@ from pywatts_pipeline.core.util.filemanager import FileManager
 from pywatts_pipeline.core.steps.start_step import StartStep
 from pywatts_pipeline.core.steps.step import Step
 from pywatts_pipeline.core.steps.step_information import StepInformation
-from pywatts_pipeline.core.exceptions.wrong_parameter_exception import WrongParameterException
+from pywatts_pipeline.core.exceptions.wrong_parameter_exception import (
+    WrongParameterException,
+)
 from pywatts_pipeline.core.steps.summary_step import SummaryStep
-from pywatts_pipeline.utils._xarray_time_series_utils import _get_time_indexes, get_last, get_start
+from pywatts_pipeline.utils._xarray_time_series_utils import (
+    _get_time_indexes,
+    get_last,
+)
 from pywatts_pipeline.utils._pywatts_json_encoder import PyWATTSJsonEncoder
-from pywatts_pipeline.core.summary.summary_formatter import SummaryMarkdown, SummaryJSON, SummaryFormatter
+from pywatts_pipeline.core.summary.summary_formatter import (
+    SummaryMarkdown,
+    SummaryFormatter,
+)
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', filename='pywatts.log',
-                    level=logging.ERROR)
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    filename="pywatts.log",
+    level=logging.ERROR,
+)
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
-logging.getLogger('matplotlib').setLevel(logging.WARN)
+logging.getLogger("matplotlib").setLevel(logging.WARN)
+
 
 class Pipeline(BaseTransformer):
     """
@@ -46,10 +58,9 @@ class Pipeline(BaseTransformer):
     """
 
     def __init__(self, path: Optional[str] = ".", name="Pipeline"):
-        # TODO integrate Miraes API
         super().__init__(name)
         self.result = {}
-        self.start_steps = dict()
+        self.start_steps = {}
         self.steps: List[BaseStep] = []
         self.step_counter = 0
         if path is None:
@@ -78,15 +89,15 @@ class Pipeline(BaseTransformer):
 
         # Fill the start_step buffers
         for key, (start_step, _) in self.start_steps.items():
-            start_step.update_buffer(x[key].copy())
+            start_step.update_buffer(x[key].copy(), start_step.index)
 
         # Get start date for the new calculation (last date of the previous one)
         start = None if len(self.result) == 0 else get_last(self.result)
-        last_steps = list(filter(lambda x: x.last and not isinstance(x, SummaryStep), self.steps))
+        last_steps = list(
+            filter(lambda x: x.last and not isinstance(x, SummaryStep), self.steps)
+        )
         result = self._collect_results(last_steps, start)
 
-
-        # TODO could we combine the following lines with _collect_results and _add_to_result?
         # Store result in self.result.
         for key in result.keys():
             if key not in self.result:
@@ -98,7 +109,7 @@ class Pipeline(BaseTransformer):
 
     def _collect_results(self, last_steps, start):
         # Note the return value is None if none of the inputs provide a result for this step...
-        result = dict()
+        result = {}
         for i, step in enumerate(last_steps):
             res = step.get_result(start, return_all=True)
             if res is not None:
@@ -106,7 +117,8 @@ class Pipeline(BaseTransformer):
                     result = self._add_to_result(i, key, value, result)
         return result
 
-    def _add_to_result(self, i, key, res, result):
+    @staticmethod
+    def _add_to_result(i, key, res, result):
         if key in result.keys():
             message = f"Naming Conflict: {key} is renamed to. {key}_{i}"
             warnings.warn(message)
@@ -124,14 +136,19 @@ class Pipeline(BaseTransformer):
         """
         return {}
 
-    def set_params(self):
+    def set_params(self, **kwargs):
         """
         Set params of pipeline module.
         """
-        pass
 
-    def test(self, data: Union[pd.DataFrame, xr.Dataset], summary: bool = True,
-             summary_formatter: SummaryFormatter = SummaryMarkdown(), refit=False, reset=True):
+    def test(
+        self,
+        data: Union[pd.DataFrame, xr.Dataset],
+        summary: bool = True,
+        summary_formatter: SummaryFormatter = SummaryMarkdown(),
+        refit=False,
+        reset=True,
+    ):
         """
         Executes all modules in the pipeline in the correct order. This method call only transform on every module
         if the ComputationMode is Default. I.e. if no computationMode is specified during the addition of the module to
@@ -146,11 +163,22 @@ class Pipeline(BaseTransformer):
         :return: The result of all end points of the pipeline
         :rtype: Dict[xr.DataArray]
         """
-        # TODO rename to transform?
-        return self._run(data, ComputationMode.Transform, summary, summary_formatter, refit=refit, reset=reset)
+        return self._run(
+            data,
+            ComputationMode.Transform,
+            summary,
+            summary_formatter,
+            refit=refit,
+            reset=reset,
+        )
 
-    def train(self, data: Union[pd.DataFrame, xr.Dataset], summary: bool = True,
-              summary_formatter: SummaryFormatter = SummaryMarkdown(), reset=True):
+    def train(
+        self,
+        data: Union[pd.DataFrame, xr.Dataset],
+        summary: bool = True,
+        summary_formatter: SummaryFormatter = SummaryMarkdown(),
+        reset=True,
+    ):
         """
         Executes all modules in the pipeline in the correct order. This method calls fit and transform on each module
         if the ComputationMode is Default. I.e. if no computationMode is specified during the addition of the module to
@@ -165,20 +193,30 @@ class Pipeline(BaseTransformer):
         :return: The result of all end points of the pipeline
         :rtype: Dict[xr.DataArray]
         """
-        # TODO rename to fit?
-        return self._run(data, ComputationMode.FitTransform, summary, summary_formatter, reset=reset)
+        return self._run(
+            data, ComputationMode.FitTransform, summary, summary_formatter, reset=reset
+        )
 
-    def _run(self, data: Union[pd.DataFrame, xr.Dataset], mode: ComputationMode, summary: bool,
-             summary_formatter: SummaryFormatter, reset=False, refit=False):
+    def _run(
+        self,
+        data: Union[pd.DataFrame, xr.Dataset],
+        mode: ComputationMode,
+        summary: bool,
+        summary_formatter: SummaryFormatter,
+        reset=False,
+        refit=False,
+    ):
 
         if reset:
             for step in self.steps:
                 self.result = {}
                 step.reset()
 
-        self.current_run_setting = RunSetting(computation_mode=mode,
-                                              summary_formatter=summary_formatter,
-                                              return_summary=summary)
+        self.current_run_setting = RunSetting(
+            computation_mode=mode,
+            summary_formatter=summary_formatter,
+            return_summary=summary,
+        )
         for step in self.steps:
             step.set_run_setting(self.current_run_setting)
 
@@ -187,16 +225,19 @@ class Pipeline(BaseTransformer):
         result = self._transform(data)
 
         if refit:
-            self.refit(start=get_start(data), end=get_last(data))
+            start = list(data.values())[0][_get_time_indexes(data)[0]][0].values
+            self.refit(start)
 
-        # TODO handle callbacks
         if summary:
-            summary_data = self._create_summary(summary_formatter)
+            summary_data = self.create_summary(summary_formatter)
             return result, summary_data
 
         return result
 
     def check_input(self, data):
+        """
+        Checks if type of data is supported by pyWATTS and transforms it to a dict of xr.DataArrays
+        """
         if isinstance(data, pd.DataFrame):
             data = data.to_xarray()
             data = {key: data[key] for key in data.data_vars}
@@ -208,18 +249,23 @@ class Pipeline(BaseTransformer):
                     raise WrongParameterException(
                         "Input Dict does not contain xr.DataArray objects.",
                         "Make sure to pass Dict[str, xr.DataArray].",
-                        self.name)
+                        self.name,
+                    )
         else:
             raise WrongParameterException(
                 "Unkown data type to pass to pipeline steps.",
                 "Make sure to use pandas DataFrames, xarray Datasets, or Dict[str, xr.DataArray].",
-                self.name)
+                self.name,
+            )
         return data
 
-    def add(self, *,
-            module: Union[BaseStep],
-            input_ids: List[int] = None,
-            target_ids: List[int] = None):
+    def add(
+        self,
+        *,
+        module: Union[BaseStep],
+        input_ids: List[int] = None,
+        target_ids: List[int] = None,
+    ):
         """
         Add a new module with all of it's inputs to the pipeline.
 
@@ -239,11 +285,18 @@ class Pipeline(BaseTransformer):
         self._register_step(module)
 
         logger.info(
-            f"Add {self.steps[-1]} to the pipeline. Inputs are {[step for step in self.get_steps_by_ids(input_ids)]}"
-            f"{'.' if not input_ids else f' and the target is {[step for step in self.get_steps_by_ids(target_ids)]}.'}"
+            f"Add {self.steps[-1]} to the pipeline. Inputs are {self.get_steps_by_ids(input_ids)}"
+            f"{'.' if not input_ids else f' and the target is {self.get_steps_by_ids(target_ids)}.'}"
         )
 
-    def get_steps_by_ids(self, ids:List[int]):
+    def get_steps_by_ids(self, ids: List[int]):
+        """
+        Return a list of steps that match to the list of ids
+        Args:
+            ids: List of ids
+
+        Returns: List of steps
+        """
         return list(filter(lambda x: x.id in ids, self.steps))
 
     def _register_step(self, step):
@@ -265,7 +318,7 @@ class Pipeline(BaseTransformer):
         json_module = super().save(fm)
         path = os.path.join(str(fm.basic_path), self.name)
         if os.path.isdir(path):
-            number = len(glob.glob(f'{path}*'))
+            number = len(glob.glob(f"{path}*"))
             path = f"{path}_{number + 1}"
         self.to_folder(path)
         json_module["pipeline_path"] = path
@@ -321,9 +374,15 @@ class Pipeline(BaseTransformer):
             "steps": steps_for_storing,
             "path": self.file_manager.basic_path if self.file_manager else None,
         }
-        file_path = save_file_manager.get_path('pipeline.json')
-        with open(file_path, 'w') as outfile:
-            json.dump(obj=stored_pipeline, fp=outfile, sort_keys=False, indent=4, cls=PyWATTSJsonEncoder)
+        file_path = save_file_manager.get_path("pipeline.json")
+        with open(file_path, "w", encoding="utf8") as outfile:
+            json.dump(
+                obj=stored_pipeline,
+                fp=outfile,
+                sort_keys=False,
+                indent=4,
+                cls=PyWATTSJsonEncoder,
+            )
 
     @staticmethod
     def from_folder(load_path, file_manager_path=None):
@@ -342,17 +401,19 @@ class Pipeline(BaseTransformer):
         """
         if not os.path.isdir(load_path):
             logger.error("Path %s for loading pipeline does not exist", load_path)
-            raise IOException(f"Path {load_path} does not exist"
-                              f"Check the path which you passed to the from_folder method.")
+            raise IOException(
+                f"Path {load_path} does not exist"
+                f"Check the path which you passed to the from_folder method."
+            )
 
         # load json file
-        file_path = os.path.join(load_path, 'pipeline.json')
-        with open(file_path, 'r') as outfile:
+        file_path = os.path.join(load_path, "pipeline.json")
+        with open(file_path, "r", encoding="utf8") as outfile:
             json_dict = json.load(outfile)
 
         # load general pipeline config
         if file_manager_path is None:
-            file_manager_path = json_dict.get('path', ".")
+            file_manager_path = json_dict.get("path", ".")
 
         pipeline = Pipeline(file_manager_path)
         # 1. load all modules
@@ -365,8 +426,10 @@ class Pipeline(BaseTransformer):
             step = pipeline._load_step(modules, step)
             pipeline.steps.append(step)
 
-        pipeline.start_steps = {element.index: (element, StepInformation(step=element, pipeline=pipeline))
-                                for element in filter(lambda x: isinstance(x, StartStep), pipeline.steps)}
+        pipeline.start_steps = {
+            element.index: (element, StepInformation(step=element, pipeline=pipeline))
+            for element in filter(lambda x: isinstance(x, StartStep), pipeline.steps)
+        }
 
         return pipeline
 
@@ -381,33 +444,44 @@ class Pipeline(BaseTransformer):
         module = None
         if isinstance(klass, Step) or issubclass(klass, Step):
             module = modules[step["module_id"]]
-        loaded_step = klass.load(step,
-                                 inputs={key: self.get_steps_by_ids([int(step_id)])[0] for step_id, key in
-                                         step["input_ids"].items()},
-                                 targets={key: self.get_steps_by_ids([int(step_id)])[0] for step_id, key in
-                                          step["target_ids"].items()},
-                                 module=module,
-                                 file_manager=self.file_manager)
+        loaded_step = klass.load(
+            step,
+            inputs={
+                key: self.get_steps_by_ids([int(step_id)])[0]
+                for step_id, key in step["input_ids"].items()
+            },
+            targets={
+                key: self.get_steps_by_ids([int(step_id)])[0]
+                for step_id, key in step["target_ids"].items()
+            },
+            module=module,
+            file_manager=self.file_manager,
+        )
         return loaded_step
 
     def __getitem__(self, item: str):
         """
         Returns the step_information for the start step corresponding to the item
         """
-        # TODO seems to be a bit weird...
         if item not in self.start_steps.keys():
             start_step = StartStep(item)
-            self.start_steps[item] = start_step, StepInformation(step=start_step, pipeline=self)
+            self.start_steps[item] = start_step, StepInformation(
+                step=start_step, pipeline=self
+            )
             self.add(module=start_step, input_ids=[], target_ids=[])
         return self.start_steps[item][-1]
 
-    def _create_summary(self, summary_formatter, start=None):
-        summaries = []
-        for step in self.steps:
-            summaries.extend(step.get_summaries(start))
+    def create_summary(self, summary_formatter: SummaryFormatter =SummaryMarkdown(), start=None):
+        summaries = self._get_summaries(start)
         return summary_formatter.create_summary(summaries, self.file_manager)
 
-    def refit(self, start, end):
+    def _get_summaries(self, start):
+        summaries = []
+        for step in filter(lambda x: isinstance(x, Step), self.steps):
+            summaries.extend(step.get_summaries(start))
+        return summaries
+
+    def refit(self, start):
         """
         Refits all steps inside of the pipeline.
         :param start: The date of the first data used for retraining.
@@ -417,5 +491,4 @@ class Pipeline(BaseTransformer):
             # A lag is needed, since if we have a 24 hour forecast we can evaluate the forecast not until 24 hours
             # are gone, since before not all target variables are available
             if isinstance(step, Step):
-                # TODO in the new online setting we need no lag or do we?
-                step.refit(start - step.lag, end - step.lag)
+                step.refit(start)

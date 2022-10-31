@@ -1,10 +1,15 @@
 import json
 from abc import ABC, abstractmethod
 from typing import List
+from tabulate import tabulate
 
 from pywatts_pipeline.core.util.filemanager import FileManager
-from pywatts_pipeline.core.summary.summary_object import SummaryObject, SummaryCategory, SummaryObjectList, SummaryObjectTable
-from tabulate import tabulate
+from pywatts_pipeline.core.summary.summary_object import (
+    SummaryObject,
+    SummaryCategory,
+    SummaryObjectList,
+    SummaryObjectTable,
+)
 
 
 class SummaryFormatter(ABC):
@@ -30,6 +35,19 @@ class SummaryFormatter(ABC):
         pass
 
 
+    @staticmethod
+    def filter_summaries(summaries, category):
+        """
+        Filter the summaries according to the chosen category
+        Args:
+            summaries: The list of summaries that should be filtered
+            category: The category which should be the filter criterium
+
+        Returns: The filtered summaries, contains only summaries that fit to the chosen category.
+        """
+        return filter(lambda s: s.category == category, summaries)
+
+
 class SummaryMarkdown(SummaryFormatter):
     """
     SummaryMarkdown is a SummaryFormatter that save the SummaryObjects according as markdown file.
@@ -44,28 +62,42 @@ class SummaryMarkdown(SummaryFormatter):
         :type fm: FileManager
         """
         summary_string = "# Summary: \n"
-        for category in [SummaryCategory.Summary, SummaryCategory.FitTime, SummaryCategory.TransformTime]:
+        for category in [
+            SummaryCategory.Summary,
+            SummaryCategory.FitTime,
+            SummaryCategory.TransformTime,
+        ]:
             summary_string += f"## {category.name}\n"
-            for summary in filter(lambda s: s.category == category, summaries):
+            for summary in self.filter_summaries(summaries, category):
                 if summary.additional_information != "" or len(summary.k_v) > 0:
                     if isinstance(summary, SummaryObjectList):
                         summary_string += self._create_summary(summary)
                     elif isinstance(summary, SummaryObjectTable):
                         summary_string += self._create_table_summary(summary)
 
-        with open(fm.get_path("summary.md"), "w") as file:
+        with open(fm.get_path("summary.md"), "w", encoding="utf8") as file:
             file.write(summary_string)
         return summary_string
 
     def _create_summary(self, summary: SummaryObject):
-        return f"### {summary.name}\n" + f"{summary.additional_information}\n" + "".join(
-            [f"* {key} : {value}\n" for key, value in summary.k_v.items()])
+        return (
+                f"### {summary.name}\n"
+                + f"{summary.additional_information}\n"
+                + "".join([f"* {key} : {value}\n" for key, value in summary.k_v.items()])
+        )
 
     def _create_table_summary(self, summary: SummaryObject):
-        return f"### {summary.name}\n" + f"{summary.additional_information}\n" + "".join(
+        return (
+                f"### {summary.name}\n"
+                + f"{summary.additional_information}\n"
+                + "".join(
             [
-                f"#### {key}\n {tabulate(value, headers=range(len(value)), showindex=range(len(value)), tablefmt='github')}\n"
-                for key, value in summary.k_v.items()])
+                f"#### {key}\n "
+                f"{tabulate(value, headers=range(len(value)), showindex=range(len(value)), tablefmt='github')}\n"
+                for key, value in summary.k_v.items()
+            ]
+        )
+        )
 
 
 class SummaryJSON(SummaryFormatter):
@@ -82,9 +114,13 @@ class SummaryJSON(SummaryFormatter):
         :type fm: FileManager
         """
         summary_dict = {}
-        for category in [SummaryCategory.Summary, SummaryCategory.FitTime, SummaryCategory.TransformTime]:
+        for category in [
+            SummaryCategory.Summary,
+            SummaryCategory.FitTime,
+            SummaryCategory.TransformTime,
+        ]:
             category_dict = {}
-            for summary in filter(lambda s: s.category == category, summaries):
+            for summary in self.filter_summaries(summaries, category):
                 if summary.additional_information != "" or len(summary.k_v) > 0:
                     if isinstance(summary, SummaryObjectList):
                         category_dict.update(self._create_summary(summary))
@@ -92,28 +128,24 @@ class SummaryJSON(SummaryFormatter):
                         category_dict.update(self._create_table_summary(summary))
 
             summary_dict.update({category.name: category_dict})
-        with open(fm.get_path("summary.json"), "w") as file:
+        with open(fm.get_path("summary.json"), "w", encoding="utf8") as file:
             json.dump(summary_dict, file)
         return summary_dict
 
     def _create_summary(self, summary: SummaryObject):
-        result_dict = {
-            key: value for key, value in summary.k_v.items()
-        }
+        result_dict = summary.k_v
         return {
             summary.name: {
                 "additional_information": summary.additional_information,
-                "results": result_dict
+                "results": result_dict,
             }
         }
 
     def _create_table_summary(self, summary: SummaryObject):
-        result_dict = {
-            key: value.tolist() for key, value in summary.k_v.items()
-        }
+        result_dict = {key: value.tolist() for key, value in summary.k_v.items()}
         return {
             summary.name: {
                 "additional_information": summary.additional_information,
-                "results": result_dict
+                "results": result_dict,
             }
         }

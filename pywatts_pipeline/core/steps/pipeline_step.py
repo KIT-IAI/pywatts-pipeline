@@ -1,7 +1,6 @@
 import pandas as pd
 
 from pywatts_pipeline.core.util.run_setting import RunSetting
-from pywatts_pipeline.core.util.computation_mode import ComputationMode
 from pywatts_pipeline.core.pipeline import Pipeline
 from pywatts_pipeline.core.steps.step import Step
 
@@ -26,6 +25,7 @@ class PipelineStep(Step):
     :param condition: A callable which checks if the step should be executed with the current data.
     :type condition: Callable[xr.DataArray, xr.DataArray, bool]
     """
+
     module: Pipeline
 
     def set_run_setting(self, run_setting: RunSetting):
@@ -38,7 +38,9 @@ class PipelineStep(Step):
         :param computation_mode: The computation mode which should be set.
         :type computation_mode: ComputationMode
         """
-        self.current_run_setting = self.default_run_setting.update(run_setting=run_setting)
+        self.current_run_setting = self.default_run_setting.update(
+            run_setting=run_setting
+        )
         for step in self.module.steps:
             step.set_run_setting(run_setting)
         self.module.current_run_setting = self.current_run_setting
@@ -53,5 +55,10 @@ class PipelineStep(Step):
         for step in self.module.steps:
             step.reset(keep_buffer=keep_buffer)
 
-    def refit(self, start: pd.Timestamp, end: pd.Timestamp):
-        self.module.refit(start, end)
+    def refit(self, start: pd.Timestamp):
+        self.module.refit(start)
+
+    def get_summaries(self, start):
+        summaries = [self.transform_time, self.training_time]
+        summaries.extend(self.module._get_summaries(start))
+        return summaries

@@ -35,7 +35,7 @@ class TestSummaryMarkdown(unittest.TestCase):
         summary_string = summary_formatter.create_summary([summary_object, summary_object2], fm_mock)
 
         fm_mock.get_path.assert_called_once_with("summary.md")
-        open_mock.assert_has_calls([call("file.md", "w")], any_order=True)
+        open_mock.assert_has_calls([call("file.md", "w", encoding="utf8")], any_order=True)
 
         self.assertEqual(expected_result, summary_string)
 
@@ -67,6 +67,6 @@ class TestSummaryJson(unittest.TestCase):
         summary_json = summary_formatter.create_summary([summary_object, summary_object2], fm_mock)
 
         fm_mock.get_path.assert_called_once_with("summary.json")
-        open_mock.assert_has_calls([call("file.md", "w")], any_order=True)
+        open_mock.assert_has_calls([call("file.md", "w", encoding="utf8")], any_order=True)
 
         self.assertEqual(expected_result, summary_json)

@@ -23,14 +23,17 @@ class SummaryStep(Step):
     :type file_manager: FileManager
     """
 
-    def __init__(self, module: BaseSummary, input_steps: Dict[str, BaseStep], file_manager):
+    def __init__(self,
+                 module: BaseSummary,
+                 input_steps: Dict[str, BaseStep],
+                 file_manager):
         super().__init__(module, input_steps, file_manager)
-        self.name = module.name
-        self.file_manager = file_manager
+        self.name: str = module.name
+        self.file_manager: FileManager = file_manager
         self.module: BaseSummary = module
 
-    def _transform(self, input_step):
-        return self.module.transform(file_manager=self.file_manager, **input_step)
+    def _transform(self, input_data):
+        return self.module.transform(file_manager=self.file_manager, **input_data)
 
     @classmethod
     def load(cls, stored_step: dict, inputs, targets, module, file_manager):
@@ -50,22 +53,12 @@ class SummaryStep(Step):
         step.file_manager = file_manager
         return step
 
-    def get_json(self, fm: FileManager):
-        return {
-            "target_ids": {step.id: key for key, step in self.targets.items()},
-            "input_ids": {step.id: key for key, step in self.input_steps.items()},
-            "id": self.id,
-            "module": self.__module__,
-            "class": self.__class__.__name__,
-            "name": self.name,
-        }
-
     def get_summaries(self, start) -> [SummaryObject]:
         """
         Calculates a summary for the input data.
         :return: The summary as markdown formatted string
         :rtype: Str
         """
-        input_data = self._get_input(start)
-        input_data = self.temporal_align_inputs(input_data)
+        input_data = self._get_inputs(self.input_steps, start)
+        input_data, _  = self.temporal_align_inputs(input_data)
         return [self._transform(input_data)]

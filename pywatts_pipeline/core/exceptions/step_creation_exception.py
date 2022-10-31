@@ -9,3 +9,4 @@ class StepCreationException(Exception):
     def __init__(self, message, module=""):
         self.message = message
         self.module = module
+        super().__init__(self.message)

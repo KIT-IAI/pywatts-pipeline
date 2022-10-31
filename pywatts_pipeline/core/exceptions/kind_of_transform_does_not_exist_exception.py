@@ -5,6 +5,7 @@ class KindOfTransform(Enum):
     """
     Enum for different types of transform
     """
+
     INVERSE_TRANSFORM = "inverse_transform"
     PROBABILISTIC_TRANSFORM = "prob_transform"
     PREDICT_TRANSFORM = "predict_transform"
@@ -21,3 +22,4 @@ class KindOfTransformDoesNotExistException(Exception):
     def __init__(self, message, method: KindOfTransform):
         self.message = message
         self.method = method
+        super().__init__(self.message)

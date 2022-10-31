@@ -1,4 +1,3 @@
-
 class InputNotAvailable(Exception):
     """
     Exception which indicates that the requested input for a module is not available
@@ -8,3 +7,4 @@ class InputNotAvailable(Exception):
 
     def __init__(self, message):
         self.message = message
+        super().__init__(self.message)

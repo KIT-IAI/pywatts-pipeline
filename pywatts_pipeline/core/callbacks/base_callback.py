@@ -36,7 +36,7 @@ class BaseCallback(ABC):
         :type data_dict: Dict[str, xr.DataArray]
         :raises NotImplementedError: Callbacks need to implement __call__ method.
         """
-        raise NotImplementedError('Callbacks need to implement __call__ method!')
+        raise NotImplementedError("Callbacks need to implement __call__ method!")
 
     def set_filemanager(self, filemanager: FileManager):
         """
@@ -62,5 +62,4 @@ class BaseCallback(ABC):
         """
         if self.filemanager is None:
             return filename
-        else:
-            return self.filemanager.get_path(filename)
+        return self.filemanager.get_path(filename)

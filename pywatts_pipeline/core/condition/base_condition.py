@@ -2,11 +2,14 @@ import inspect
 from abc import ABC, abstractmethod
 from typing import List
 
+import pandas as pd
 import xarray as xr
 
-from pywatts_pipeline.core.exceptions.step_creation_exception import StepCreationException
+from pywatts_pipeline.core.exceptions.step_creation_exception import (
+    StepCreationException,
+)
 from pywatts_pipeline.core.steps.step_information import StepInformation
-import pandas as pd
+
 
 class BaseCondition(ABC):
     """
@@ -16,8 +19,14 @@ class BaseCondition(ABC):
     :type name: str
     """
 
-    def __init__(self, name, refit_batch: pd.Timedelta = pd.Timedelta(hours=24), refit_params: dict = None,
-                 delay_refit: int = None, cooldown: int = None):
+    def __init__(
+        self,
+        name,
+        refit_batch: pd.Timedelta = pd.Timedelta(hours=24),
+        refit_params: dict = None,
+        delay_refit: int = None,
+        cooldown: int = None,
+    ):
         if refit_params is None:
             refit_params = {}
 
@@ -50,7 +59,7 @@ class BaseCondition(ABC):
                 f"The given kwargs does not fit to the inputs of the Condition{self.__class__.__name__} {self.name}."
                 f"The module only needs and accepts {inspect.signature(self.evaluate).parameters.keys()} as input. "
                 f"However, {kwargs.keys()} are given as input. ",
-                self
+                self,
             )
         self.kwargs = kwargs
 
@@ -64,7 +73,9 @@ class BaseCondition(ABC):
         return False
 
     def _get_inputs(self, start, end):
-        return {key: value.step.get_result(start, end) for key, value in self.kwargs.items()}
+        return {
+            key: value.step.get_result(start, end) for key, value in self.kwargs.items()
+        }
 
     def _cooldown_expired(self):
         if self.cooldown is not None:
@@ -80,7 +91,7 @@ class BaseCondition(ABC):
         if self.delay_refit is not None:
             self._counter_delay += 1
             self._counter_delay = self._counter_delay % self.delay_refit
-            if not self._counter_delay == 0:
+            if self._counter_delay != 0:
                 return False
             return True
         return True
