@@ -59,7 +59,6 @@ logger.setLevel(logging.DEBUG)
 logging.getLogger("matplotlib").setLevel(logging.WARN)
 
 
-
 class Pipeline(BaseTransformer):
     """
     The pipeline class is the central class of pyWATTS. It is responsible for
@@ -145,7 +144,7 @@ class Pipeline(BaseTransformer):
             result[key] = res
         return result
 
-   # TODO place somewhere else
+    # TODO place somewhere else
     parameters = {
         "steps": list,
         "assembled_steps": list,
@@ -179,9 +178,9 @@ class Pipeline(BaseTransformer):
                     self.assembled_steps.append(step)
                 setattr(self, parameter, value)
 
-            elif parameter in self.parameters.keys():#TODO and type(value) in self.make_list(
-            #    self.parameters[parameter]
-            #):
+            elif parameter in self.parameters.keys():  # TODO and type(value) in self.make_list(
+                #    self.parameters[parameter]
+                # ):
                 setattr(self, parameter, value)
             else:
                 raise ValueError(
@@ -195,14 +194,12 @@ class Pipeline(BaseTransformer):
                     )
                 )
 
-
     def predict(self, x, y, fh):
         # TODO:
         #  * Merge x and y? Can we do this?
         #  * Add dummy values to y for the fh horizon (e.g., nans)
         #  * call _run with this created dataset
-        data = x # TODO merged with y and extended by fh
-
+        data = x  # TODO merged with y and extended by fh
 
         # TODO: Schaue alle startsteps an:
         for step in self.start_steps:
@@ -212,7 +209,7 @@ class Pipeline(BaseTransformer):
                 pass
             else:
                 # TODO update data with dummy inputs for the step
-                data[step.name] = pd.DataFrame(np.full((len(fh), ), np.nan), index=fh)
+                data[step.name] = pd.DataFrame(np.full((len(fh),), np.nan), index=fh)
             pass
 
         # TODO how to pass fh to sktime forecasters?
@@ -225,12 +222,13 @@ class Pipeline(BaseTransformer):
         return self.test(data)
 
     def test(
-        self,
-        data: Union[pd.DataFrame, xr.Dataset],
-        summary: bool = True,
-        summary_formatter: SummaryFormatter = SummaryMarkdown(),
-        refit=False,
-        reset=True,
+            self,
+            data: Union[pd.DataFrame, xr.Dataset],
+            summary: bool = True,
+            summary_formatter: SummaryFormatter = SummaryMarkdown(),
+            refit=False,
+            reset=True,
+            fh: ForecastingHorizon = None
     ):
         """
         Executes all modules in the pipeline in the correct order. This method call only transform on every module
@@ -246,6 +244,10 @@ class Pipeline(BaseTransformer):
         :return: The result of all end points of the pipeline
         :rtype: Dict[xr.DataArray]
         """
+        if fh:
+            # TODO Use last value instead of first of the provided.
+            data = data.join(pd.DataFrame(
+                index=fh.to_absolute(data.index[0] - pd.Timedelta(1, data.index.freq.name)).to_pandas()), how="right")
         return self._run(
             data,
             ComputationMode.Transform,
@@ -253,14 +255,15 @@ class Pipeline(BaseTransformer):
             summary_formatter,
             refit=refit,
             reset=reset,
+            fh=fh
         )
 
     def train(
-        self,
-        data: Union[pd.DataFrame, xr.Dataset],
-        summary: bool = True,
-        summary_formatter: SummaryFormatter = SummaryMarkdown(),
-        reset=True,
+            self,
+            data: Union[pd.DataFrame, xr.Dataset],
+            summary: bool = True,
+            summary_formatter: SummaryFormatter = SummaryMarkdown(),
+            reset=True,
     ):
         """
         Executes all modules in the pipeline in the correct order. This method calls fit and transform on each module
@@ -284,14 +287,14 @@ class Pipeline(BaseTransformer):
         )
 
     def _run(
-        self,
-        data: Union[pd.DataFrame, xr.Dataset],
-        mode: ComputationMode,
-        summary: bool,
-        summary_formatter: SummaryFormatter,
-        reset=False,
-        refit=False,
-        fh=None,
+            self,
+            data: Union[pd.DataFrame, xr.Dataset],
+            mode: ComputationMode,
+            summary: bool,
+            summary_formatter: SummaryFormatter,
+            reset=False,
+            refit=False,
+            fh=None,
     ):
 
         if reset:
@@ -366,15 +369,16 @@ class Pipeline(BaseTransformer):
         # register modules in the pipeline
         self._register_step(step)
 
-        #logger.info(
+        # logger.info(
         #    f"Add {self.steps[-1]} to the pipeline. Inputs are {self.get_steps_by_ids(input_ids)}"
         #    f"{'.' if not input_ids else f' and the target is {self.get_steps_by_ids(target_ids)}.'}"
-        #)
+        # )
+
     def get_step(self, edge, steps, name=""):
         if not isinstance(edge, str):
             # TODO what happens if we want to provide a string as additional input?
             step = DummyStep(edge)
-            self.add(step=step, name=name) # TODO string is id will not work again?
+            self.add(step=step, name=name)  # TODO string is id will not work again?
             return StepInformation(step=step, pipeline=self)
         for step in steps:
             if step.name == edge:
@@ -385,7 +389,6 @@ class Pipeline(BaseTransformer):
             self.add(step=start_step, name=edge)
             return self.start_steps[edge][-1]
         raise Exception()
-
 
     def add_new_api(self, estimator, name, input_edges, use_inverse_transform: bool = False,
                     use_prob_transform: bool = False,
@@ -407,16 +410,16 @@ class Pipeline(BaseTransformer):
             step = StepFactory().create_summary(module=estimator, kwargs=kwargs)
         else:
             step = StepFactory().create_step(module=estimator, kwargs=kwargs,
-                                         condition=condition,
-                                         callbacks=callbacks,
-                                         computation_mode=computation_mode,
-                                         refit_conditions=refit_conditions if isinstance(refit_conditions, list) else [
-                                             refit_conditions
-                                         ],
-                                    #     retrain_batch=retrain_batch,
-                                         lag=lag, method=method, pipeline=self)
+                                             condition=condition,
+                                             callbacks=callbacks,
+                                             computation_mode=computation_mode,
+                                             refit_conditions=refit_conditions if isinstance(refit_conditions,
+                                                                                             list) else [
+                                                 refit_conditions
+                                             ],
+                                             #     retrain_batch=retrain_batch,
+                                             lag=lag, method=method, pipeline=self)
         self.add(step=step.step, name=name)
-
 
     def assemble(self, steps: list, outputs=None):
         estimators = [node.module for node in filter(lambda x: isinstance(x, Step), steps)]
@@ -437,20 +440,22 @@ class Pipeline(BaseTransformer):
             elif isinstance(node, SummaryStep):
                 # TODO this is not working for old api currently, since we do not prove that the names are unique...
                 # TODO this is not working. node.input_steps is related to self.steps and not to self.assembled_steps
-                inputs = {key: StepInformation(self.get_step(value.name, assembled_steps).step, self) for key, value in node.input_steps.items()}
+                inputs = {key: StepInformation(self.get_step(value.name, assembled_steps).step, self) for key, value in
+                          node.input_steps.items()}
                 step = StepFactory().create_summary(module=self.est_dict[id(node.module)], kwargs=inputs).step
             else:
-                inputs = {key: StepInformation(self.get_step(value.name, assembled_steps).step, self) for key, value in node.input_steps.items()}
+                inputs = {key: StepInformation(self.get_step(value.name, assembled_steps).step, self) for key, value in
+                          node.input_steps.items()}
                 step = StepFactory().create_step(module=self.est_dict[id(node.module)], kwargs=inputs,
-                                             callbacks=node.callbacks,
-                                             condition=node.condition,
+                                                 callbacks=node.callbacks,
+                                                 condition=node.condition,
                                                  method=node.method,
-                                             computation_mode=node.default_run_setting.computation_mode,
-                                             refit_conditions=node.refit_conditions,
-                                             #retrain_batch =node.retrain_batch,
-                                             lag=node.lag,
-                                             pipeline=self
-                                             ).step
+                                                 computation_mode=node.default_run_setting.computation_mode,
+                                                 refit_conditions=node.refit_conditions,
+                                                 # retrain_batch =node.retrain_batch,
+                                                 lag=node.lag,
+                                                 pipeline=self
+                                                 ).step
             step.name = node.name
             assembled_steps.append(step)
         params = {
@@ -647,7 +652,7 @@ class Pipeline(BaseTransformer):
             self.add(step=start_step, name=item)
         return self.start_steps[item][-1]
 
-    def create_summary(self, summary_formatter: SummaryFormatter =SummaryMarkdown(), start=None):
+    def create_summary(self, summary_formatter: SummaryFormatter = SummaryMarkdown(), start=None):
         summaries = self._get_summaries(start)
         return summary_formatter.create_summary(summaries, self.file_manager)
 
