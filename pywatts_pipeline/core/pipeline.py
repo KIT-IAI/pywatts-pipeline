@@ -10,8 +10,10 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Union, List, Dict, Optional, Callable
 
+import numpy as np
 import pandas as pd
 import xarray as xr
+from sktime.forecasting.base import ForecastingHorizon
 
 from pywatts_pipeline.core.steps.DummyStep import DummyStep
 from pywatts_pipeline.core.summary.base_summary import BaseSummary
@@ -193,6 +195,35 @@ class Pipeline(BaseTransformer):
                     )
                 )
 
+
+    def predict(self, x, y, fh):
+        # TODO:
+        #  * Merge x and y? Can we do this?
+        #  * Add dummy values to y for the fh horizon (e.g., nans)
+        #  * call _run with this created dataset
+        data = x # TODO merged with y and extended by fh
+
+
+        # TODO: Schaue alle startsteps an:
+        for step in self.start_steps:
+            # TODO schaue ob jeder start step in dem Eingabedaten abgedeckt ist.
+            if step.name in data:
+                # TODO alles ist glaub ich gut
+                pass
+            else:
+                # TODO update data with dummy inputs for the step
+                data[step.name] = pd.DataFrame(np.full((len(fh), ), np.nan), index=fh)
+            pass
+
+        # TODO how to pass fh to sktime forecasters?
+        #   Would it work if start, end, min_data etc. is transmitted via forecasting_horizon object?
+        #      Would not solve the problem, how we determine if the forecasting horizon should be passed to the transformer
+        #   Step has a set of information: E.g. fh, but also the dummy information. Before calling fit or transform:
+        #      - The step looks, if in its set of information is stuff that might be interessting for the transformer
+        #      - In that case this information is also passed to fit, transform, ...
+
+        return self.test(data)
+
     def test(
         self,
         data: Union[pd.DataFrame, xr.Dataset],
@@ -245,8 +276,11 @@ class Pipeline(BaseTransformer):
         :return: The result of all end points of the pipeline
         :rtype: Dict[xr.DataArray]
         """
+
+        # TODO this seems to be a bit hacky...
+        fh = ForecastingHorizon(data.index, is_relative=False)
         return self._run(
-            data, ComputationMode.FitTransform, summary, summary_formatter, reset=reset
+            data, ComputationMode.FitTransform, summary, summary_formatter, reset=reset, fh=fh
         )
 
     def _run(
@@ -257,6 +291,7 @@ class Pipeline(BaseTransformer):
         summary_formatter: SummaryFormatter,
         reset=False,
         refit=False,
+        fh=None,
     ):
 
         if reset:
@@ -268,6 +303,7 @@ class Pipeline(BaseTransformer):
             computation_mode=mode,
             summary_formatter=summary_formatter,
             return_summary=summary,
+            fh=fh,
         )
         for step in self.assembled_steps:
             step.set_run_setting(self.current_run_setting)

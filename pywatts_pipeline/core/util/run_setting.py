@@ -22,10 +22,12 @@ class RunSetting:
         computation_mode: ComputationMode,
         summary_formatter: SummaryFormatter = SummaryMarkdown(),
         return_summary=False,
+        fh = None,
     ):
         self.computation_mode = computation_mode
         self.summary_formatter = summary_formatter
         self.return_summary = return_summary
+        self.fh = fh
 
     def update(self, run_setting: "RunSetting") -> "RunSetting":
         """
@@ -41,6 +43,7 @@ class RunSetting:
             setting.computation_mode = run_setting.computation_mode
         setting.summary_formatter = run_setting.summary_formatter
         setting.return_summary = run_setting.return_summary
+        setting.fh = run_setting.fh
         return setting
 
     def clone(self) -> "RunSetting":
@@ -53,6 +56,7 @@ class RunSetting:
             computation_mode=self.computation_mode,
             summary_formatter=self.summary_formatter,
             return_summary=self.return_summary,
+            fh=self.fh
         )
 
     def save(self) -> Dict:

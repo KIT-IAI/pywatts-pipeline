@@ -123,10 +123,10 @@ class Step(BaseStep):
         # Fit the encapsulate module, if the input and the target is not stopped.
         inps = dict(filter(lambda x: x[0] in inspect.signature(self.module.fit).parameters.keys(), inputs.items())) if "kwargs" not in inspect.signature(self.module.fit).parameters.keys()else inputs
         start_time = time.time()
-        if isinstance(self.module, sktime.base.BaseObject):
-            inps = {
-                key: val.to_dataframe() if isinstance(val, xr.DataArray) else val for key, val in inps.items()
-            }
+        #if isinstance(self.module, sktime.base.BaseObject):
+        #    inps = {
+        #        key: val.to_dataframe(key) if isinstance(val, xr.DataArray) else val for key, val in inps.items()
+        #    }
         self.module.fit(**inps)
         self.training_time.set_kv("", time.time() - start_time)
 
@@ -167,11 +167,13 @@ class Step(BaseStep):
         start_time = time.time()
         # TODO use inspect to get all inputs needed for method
         if isinstance(self.module, sktime.base.BaseObject):
-            inp = {
-                key: val.to_dataframe().asfreq(pd.infer_freq(val.to_dataframe().index)).to_numpy() if isinstance(val, xr.DataArray) else val for key, val in inps.items()
-            }
-            result = method(**inp).to_xarray()
-            result = result[list(result.data_vars)[0]]
+            #inp = {
+            #    key: val.to_dataframe().asfreq(pd.infer_freq(val.to_dataframe().index)).to_numpy() if isinstance(val, xr.DataArray) else val for key, val in inps.items()
+            #}
+            if self.current_run_setting.fh:
+                inps["fh"] = self.current_run_setting.fh
+            result = method(**inps)
+            #result = result[list(result.data_vars)[0]]
         else:
             result = method(**input_data)
 
@@ -199,12 +201,21 @@ class Step(BaseStep):
         # TODO handle different named dims
         if len(inputs) == 0:
             return  {}
+        for key, val in inputs.items():
+            if isinstance(val, xr.DataArray):
+                inputs[key] = inputs[key].rename({
+                    _get_time_indexes(val, get_all=False) : "time"
+                })
         dims = set()
         for inp in inputs.values():
             if isinstance(inp, xr.DataArray): # TODO hacky
                 dims.update(inp.dims)
-
         if target is not None:
+            for key, val in target.items():
+                if isinstance(val, xr.DataArray):
+                    inputs[key] = inputs[key].rename({
+                        _get_time_indexes(val, get_all=False): "time"
+                    })
             for inp in target.values():
                 dims.update(inp.dims)
         for key, val in inputs.items():
