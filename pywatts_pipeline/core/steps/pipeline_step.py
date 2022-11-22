@@ -30,7 +30,7 @@ class PipelineStep(Step):
 
     def set_run_setting(self, run_setting: RunSetting):
         """
-        Sets the run settings of the step for the current run. Note that after reset old setting is restored.
+        Sets the run settings of the step for the current run. Note, after the reset old setting is restored.
         Moreover, setting the computation_mode is only possible if the computation_mode is not set explicitly while
         adding the corresponding module to the pipeline.
         Moreover, it sets also the computation_mode of all steps in the subpipeline.
