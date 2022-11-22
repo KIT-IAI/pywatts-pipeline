@@ -113,8 +113,6 @@ class Step(BaseStep):
         # Check if step should be executed.
         if self._should_stop(start, minimum_data):
             return None
-        if len(self.buffer) > 0 and start is None:
-            return self._pack_data(start, return_all=return_all, minimum_data=minimum_data)
         self._compute(start, minimum_data)
         return self._pack_data(start, return_all=return_all, minimum_data=minimum_data)
 
