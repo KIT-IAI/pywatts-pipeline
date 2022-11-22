@@ -67,7 +67,6 @@ class Step(BaseStep):
                  refit_conditions:List[BaseCondition]=None,
                  retrain_batch=pd.Timedelta(hours=24),
                  lag=pd.Timedelta(hours=24)):
-        self.method = method
         super().__init__(
             input_steps,
             targets,
@@ -75,6 +74,7 @@ class Step(BaseStep):
             computation_mode=computation_mode,
             name=module.name,
         )
+        self.method = method
         self.file_manager = file_manager
         self.module = module
         self.callbacks = callbacks if callbacks is not None else []
@@ -92,6 +92,7 @@ class Step(BaseStep):
 
         self.lag = lag
         self.retrain_batch = retrain_batch
+        self._last_computed_entry = None
 
     def get_result(self,
                    start: pd.Timestamp,
@@ -112,7 +113,8 @@ class Step(BaseStep):
         # Check if step should be executed.
         if self._should_stop(start, minimum_data):
             return None
-
+        if len(self.buffer) > 0 and start is None:
+            return self._pack_data(start, return_all=return_all, minimum_data=minimum_data)
         self._compute(start, minimum_data)
         return self._pack_data(start, return_all=return_all, minimum_data=minimum_data)
 
@@ -250,17 +252,21 @@ class Step(BaseStep):
     def _compute(self, start, minimum_data):
         input_data = self._get_inputs(self.input_steps, start, minimum_data)
         target = self._get_inputs(self.targets, start, minimum_data)
-        input_data, target = self.temporal_align_inputs(input_data, target)
+        if not self._last_computed_entry is None and self._last_computed_entry >= _get_time_indexes(input_data, get_all=False, get_index=True)[-1]:
+            return
+        self._last_computed_entry = _get_time_indexes(input_data, get_all=False, get_index=True)[-1]
+
         if self.current_run_setting.computation_mode in [
             ComputationMode.Default,
             ComputationMode.FitTransform,
             ComputationMode.Train,
         ]:
-            self._fit(input_data, target)
+            in_data, target = self.temporal_align_inputs(input_data, target)
+            self._fit(in_data, target)
         elif self.module is BaseEstimator:  # TODO more general for sktime
             logger.info("%s not fitted in Step %s", self.module.name, self.name)
-
-        self._transform(input_data)
+        in_data, _ = self.temporal_align_inputs(input_data)
+        self._transform(in_data)
 
     def _get_inputs(self, input_steps, start, minimum_data=(0, pd.Timedelta(0))):
         min_data_module = self.module.get_min_data()

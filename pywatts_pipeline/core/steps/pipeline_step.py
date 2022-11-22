@@ -45,6 +45,12 @@ class PipelineStep(Step):
             step.set_run_setting(run_setting)
         self.module.current_run_setting = self.current_run_setting
 
+    @staticmethod
+    def temporal_align_inputs(inputs, target=None):
+        # Note pipeline step need no temporal alignment
+        return {key: inputs[key] for key in inputs.keys()}, {
+            key: target[key] for key in target.keys()} if isinstance(target, dict) else {}
+
     def reset(self, keep_buffer=False):
         """
         Resets all information of the step concerning a specific run. Furthermore, it resets also all steps

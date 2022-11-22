@@ -94,7 +94,7 @@ class BaseStep(ABC):
             # After sel copy is not needed, since it returns a new array.
             if return_all:
                 return {
-                    key: b.sel(**{time_index: index[(index >= start)]})
+                    key: b.sel(**{time_index: b.indexes[_get_time_indexes(b)[0]][(b.indexes[_get_time_indexes(b)[0]] >= start)]})
                     for key, b in self.buffer.items()
                 }
             return list(self.buffer.values())[0].sel(
@@ -113,9 +113,15 @@ class BaseStep(ABC):
         else:
             dim = _get_time_indexes(self.buffer[index], get_all=False)
             last = get_last(self.buffer[index])
-            self.buffer[index] = xr.concat(
-                [self.buffer[index], x[x[dim] > last]], dim=dim
-            )
+            if index != dim:
+                self.buffer[index] = xr.concat(
+                    [self.buffer[index], x[x[dim] > last].dropna(dim)], dim=dim
+                )
+            else:
+                self.buffer[index] = xr.concat(
+                    [self.buffer[index], x[x[dim] > last]], dim=dim
+                )
+
 
     def get_json(self, fm: FileManager) -> Dict:
         """
@@ -168,7 +174,8 @@ class BaseStep(ABC):
                 and not self.condition(input_result, target_result)
             )
             or self._input_stopped(input_result)
-            or self._input_stopped(target_result)
+            or (self.current_run_setting.computation_mode in [ComputationMode.Default, ComputationMode.FitTransform,
+                                                              ComputationMode.Refit] and self._input_stopped(target_result))
         )
 
     @staticmethod
@@ -187,6 +194,7 @@ class BaseStep(ABC):
         if not keep_buffer:
             self.buffer = {}
         self.finished = False
+        self._last_computed_entry = None
         self.current_run_setting = self.default_run_setting.clone()
 
     def set_run_setting(self, run_setting: RunSetting):

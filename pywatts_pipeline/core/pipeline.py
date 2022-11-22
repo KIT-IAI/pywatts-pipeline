@@ -239,8 +239,11 @@ class Pipeline(BaseTransformer):
         Checks if type of data is supported by pyWATTS and transforms it to a dict of xr.DataArrays
         """
         if isinstance(data, pd.DataFrame):
-            data = data.to_xarray()
-            data = {key: data[key] for key in data.data_vars}
+            ds = data.to_xarray()
+            data = {key: ds[key] for key in ds.data_vars}
+            data.update({
+                key: xr.DataArray(coords={key: ds.indexes[key]}, dims=[key]) for key, index in ds.indexes.items()
+            })
         elif isinstance(data, xr.Dataset):
             data = {key: data[key] for key in data.data_vars}
         elif isinstance(data, dict):
