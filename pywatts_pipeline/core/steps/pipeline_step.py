@@ -30,7 +30,7 @@ class PipelineStep(Step):
 
     def set_run_setting(self, run_setting: RunSetting):
         """
-        Sets the run settings of the step for the current run. Note that after reset old setting is restored.
+        Sets the run settings of the step for the current run. Note, after the reset old setting is restored.
         Moreover, setting the computation_mode is only possible if the computation_mode is not set explicitly while
         adding the corresponding module to the pipeline.
         Moreover, it sets also the computation_mode of all steps in the subpipeline.
@@ -44,6 +44,12 @@ class PipelineStep(Step):
         for step in self.module.steps:
             step.set_run_setting(run_setting)
         self.module.current_run_setting = self.current_run_setting
+
+    @staticmethod
+    def temporal_align_inputs(inputs, target=None):
+        # Note pipeline step need no temporal alignment
+        return {key: inputs[key] for key in inputs.keys()}, {
+            key: target[key] for key in target.keys()} if isinstance(target, dict) else {}
 
     def reset(self, keep_buffer=False):
         """

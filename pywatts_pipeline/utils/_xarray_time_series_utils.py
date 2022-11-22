@@ -47,9 +47,8 @@ def get_last(x: Union[xr.DataArray, Dict[str, xr.DataArray]]):
 
     return x[dim].values[-1]
 
-
 def _get_time_indexes(
-    x: Union[xr.DataArray, Dict[str, xr.DataArray]], get_all=True
+    x: Union[xr.DataArray, Dict[str, xr.DataArray]], get_all=True, get_index=False
 ) -> Union[List[str], str]:
     """
     Returns a list of time indexes
@@ -66,14 +65,19 @@ def _get_time_indexes(
                 indexes.append(k)
         if get_all:
             return indexes
+        if get_index:
+            return v.indexes[indexes[0]]
         return indexes[0]
+    if not x:
+        return []
     for k, v in list(x.values())[0].indexes.items():
         if isinstance(v, pd.DatetimeIndex):
             indexes.append(k)
     if get_all:
         return indexes
+    if get_index:
+        return list(x.values())[0].indexes[indexes[0]]
     return indexes[0]
-
 
 def xarray_to_numpy(x: Dict[str, xr.DataArray]):
     """
