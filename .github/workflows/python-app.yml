@@ -24,7 +24,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8 pytest torch git+https://github.com/KIT-IAI/pyWATTS@pipeline_extraction
+        pip install flake8 pytest torch git+https://github.com/KIT-IAI/pyWATTS
         pip install .[dev]
     - name: Lint with flake8
       run: |
@@ -39,7 +39,6 @@ jobs:
       run: |
         git clone https://github.com/KIT-IAI/pyWATTS.git
         cd pyWATTS
-        git checkout pipeline_extraction
         cd examples
         python example.py
         python example_keras.py
