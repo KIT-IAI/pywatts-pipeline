@@ -39,7 +39,6 @@ jobs:
       run: |
         git clone https://github.com/KIT-IAI/pyWATTS.git
         cd pyWATTS
-        git checkout pipeline_extraction
         cd examples
         python example.py
         python example_keras.py
