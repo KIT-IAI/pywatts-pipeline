@@ -509,6 +509,34 @@ class TestPipeline(unittest.TestCase):
 
         assert not isinstance(result, tuple)
         xr.testing.assert_equal(result["second"], da)
+    def test_pipeline_path_none(self):
+        pipeline = Pipeline(None)
+
+        # Add some steps to the pipeline
+        time = pd.date_range('2000-01-01', freq='1H', periods=7)
+
+        da = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time})
+
+        # Assert that the computation is set to fit_transform if the ComputationMode was default
+        first_step = MagicMock()
+        first_step.computation_mode = ComputationMode.Default
+        first_step.finished = False
+        first_step.get_result.return_value = {"first": da}
+
+        second_step = MagicMock()
+        second_step.computation_mode = ComputationMode.Train
+        second_step.finished = False
+        second_step.get_result.return_value = {"second": da}
+
+        pipeline.add(module=first_step)
+        pipeline.add(module=second_step)
+
+        data = pd.DataFrame({"test": [1, 2, 2, 3, 4], "test2": [2, 2, 2, 2, 2]},
+                            index=pd.DatetimeIndex(pd.date_range('2000-01-01', freq='24H', periods=5)))
+        result = pipeline.train(data)
+        assert not isinstance(result, tuple)
+        assert pipeline.file_manager is None
+
 
     @patch("builtins.open", new_callable=mock_open)
     def test_horizon_greater_one_regression_inclusive_summary_file(self, open_mock):
