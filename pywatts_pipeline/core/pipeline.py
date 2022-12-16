@@ -11,6 +11,10 @@ from typing import Union, List, Dict, Optional
 
 import pandas as pd
 import xarray as xr
+from matplotlib import pyplot as plt
+from matplotlib.collections import PatchCollection
+from matplotlib.patches import Rectangle
+from schemdraw import schemdraw, flow
 
 from pywatts_pipeline.core.transformer.base import BaseTransformer
 from pywatts_pipeline.core.steps.base_step import BaseStep
@@ -495,3 +499,61 @@ class Pipeline(BaseTransformer):
             # are gone, since before not all target variables are available
             if isinstance(step, Step):
                 step.refit(start)
+
+    def ordered_step_list(self):
+        ordered_list = [list(filter(lambda x: x.last, self.steps))]
+        finished = False
+        while not finished:
+            preds = []
+            for s in ordered_list[-1]:
+                preds.extend(list(s.input_steps.values()) + (list(s.targets.values()) if hasattr(s, "targets") else []))
+            preds = set(preds)
+            new_ordered_list = []
+            for l in ordered_list:
+                new_l = []
+                for e in l:
+                    if not e in preds:
+                        new_l.append(e)
+                new_ordered_list.append(new_l)
+            ordered_list = new_ordered_list
+            if len(preds) == 0:
+                finished = True
+            else:
+                ordered_list.append(preds)
+        return ordered_list
+
+    def draw(self, subpipelines=True, fig_width = 20, fig_height=20):
+        from schemdraw.util import Point
+        from pywatts_pipeline.core.steps.pipeline_step import PipelineStep
+        elements = {}
+        w = 3
+        h = 2
+        with schemdraw.Drawing() as d:
+            d.config(fontsize=10, unit=.5)
+            for i, l in enumerate(self.ordered_step_list()[::-1]):
+                pos = Point(((w + 1) * i, 0))
+                for s in l:
+                    if isinstance(s, SummaryStep):
+                        element = flow.RoundProcess(w=w, h=h)
+                    elif isinstance(s, Step):
+                        element = flow.Process(w=w, h=h)
+                    elif isinstance(s, PipelineStep):
+                        element = flow.Subroutine(w=w, h=h)
+                    elif isinstance(s, StartStep):
+                        element = flow.Data(w=w, h=h)
+
+                    if pos is None:
+                        element.label(s.name)
+                    else:
+                        element.at(pos).label(s.name)
+                    d += element
+                    pos = pos + Point((0, h + 1))
+                    elements[s] = element
+
+            # Find all successors:
+            for s in self.steps:
+                preds = list(s.input_steps.values()) + (list(s.targets.values()) if hasattr(s, "targets") else [])
+                for p in preds:
+                    d+= flow.Arrow().at(elements[p].E).to(elements[s].W)
+
+
