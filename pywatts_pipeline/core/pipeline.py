@@ -555,9 +555,13 @@ class Pipeline(BaseTransformer):
                 preds = list(s.input_steps.values()) + (list(s.targets.values()) if hasattr(s, "targets") else [])
                 for p in preds:
                     if (elements[p].center.y - elements[s].center.y) != 0:
-                        d += flow.Wire("Z", k=w / 8, arrow="->").at(elements[p].E).to(elements[s].W)
+                        if (elements[s].center.x - elements[p].center.x) > w * 2:
+                            d += flow.Wire("N", k=h / (elements[s].center.x - elements[p].center.x), arrow="->").at(
+                                elements[p].N).to(elements[s].S)
+                        else:
+                            d += flow.Wire("Z", k=w / 8, arrow="->").at(elements[p].E).to(elements[s].W)
                     elif (elements[s].center.x - elements[p].center.x) > w * 2:
-                        d += flow.Wire("n", k=-2 - (elements[s].center.x - elements[p].center.x) / (w * 2),
+                        d += flow.Wire("n", k=- (elements[s].center.x - elements[p].center.x) / (w * 2),
                                        arrow="->").at(elements[p].S).to(elements[s].S)
                     else:
                         d += flow.Arrow().at(elements[p].E).to(elements[s].W)
