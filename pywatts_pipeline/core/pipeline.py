@@ -20,14 +20,23 @@ from pywatts_pipeline.core.steps.base_step import BaseStep
 from pywatts_pipeline.core.util.run_setting import RunSetting
 from pywatts_pipeline.core.util.computation_mode import ComputationMode
 from pywatts_pipeline.core.exceptions.io_exceptions import IOException
-from pywatts_pipeline.core.util.filemanager import FileManager
-from pywatts_pipeline.core.steps.start_step import StartStep
-from pywatts_pipeline.core.steps.step import Step
-from pywatts_pipeline.core.steps.step_information import StepInformation
 from pywatts_pipeline.core.exceptions.wrong_parameter_exception import (
     WrongParameterException,
 )
+from pywatts_pipeline.core.steps.base_step import BaseStep
+from pywatts_pipeline.core.steps.start_step import StartStep
+from pywatts_pipeline.core.steps.step import Step
+from pywatts_pipeline.core.steps.step_information import StepInformation
 from pywatts_pipeline.core.steps.summary_step import SummaryStep
+from pywatts_pipeline.core.summary.summary_formatter import (
+    SummaryMarkdown,
+    SummaryFormatter,
+)
+from pywatts_pipeline.core.transformer.base import BaseTransformer
+from pywatts_pipeline.core.util.computation_mode import ComputationMode
+from pywatts_pipeline.core.util.filemanager import FileManager
+from pywatts_pipeline.core.util.run_setting import RunSetting
+from pywatts_pipeline.utils._pywatts_json_encoder import PyWATTSJsonEncoder
 from pywatts_pipeline.utils._xarray_time_series_utils import (
     _get_time_indexes,
     get_last,
@@ -38,6 +47,7 @@ from pywatts_pipeline.core.summary.summary_formatter import (
     SummaryFormatter,
 )
 from pywatts_pipeline.utils.unique_id_generator import UniqueIDGenerator
+from pywatts_pipeline.utils.visualisation import visualise_pipeline
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -285,6 +295,7 @@ class Pipeline(BaseTransformer):
         data: Union[pd.DataFrame, xr.Dataset],
         summary: bool = True,
         summary_formatter: SummaryFormatter = SummaryMarkdown(),
+        reset=True,
     ):
         """
         Executes all modules in the pipeline in the correct order. This method calls fit and transform on each module
@@ -565,3 +576,6 @@ class Pipeline(BaseTransformer):
             # are gone, since before not all target variables are available
             if isinstance(step, Step):
                 step.refit(start)
+
+    def draw(self):
+        return visualise_pipeline(self.steps)

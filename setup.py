@@ -1,5 +1,14 @@
 import setuptools
 
+dev = [
+    "pytest",
+    "sphinx>=4",
+    "pylint",
+    "pytest-cov"
+]
+
+visualize = ["schemdraw"]
+
 setuptools.setup(
     name="pywatts-pipeline",
     version="0.1.0",
@@ -7,12 +16,8 @@ setuptools.setup(
 
     install_requires=['cloudpickle', 'distlib', 'xarray>=0.19', 'numpy', 'pandas', 'tabulate'],
     extras_require={
-        'dev': [
-            "pytest",
-            "sphinx>=4",
-            "pylint",
-            "pytest-cov"
-        ]
+        'dev': dev + visualize,
+        'visualize': visualize
     },
     author="pyWATTS-TEAM",
     author_email="pywatts-team@iai.kit.edu",
