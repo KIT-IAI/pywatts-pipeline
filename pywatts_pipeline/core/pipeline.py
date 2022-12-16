@@ -146,12 +146,12 @@ class Pipeline(BaseTransformer):
         """
 
     def test(
-        self,
-        data: Union[pd.DataFrame, xr.Dataset],
-        summary: bool = True,
-        summary_formatter: SummaryFormatter = SummaryMarkdown(),
-        refit=False,
-        reset=True,
+            self,
+            data: Union[pd.DataFrame, xr.Dataset],
+            summary: bool = True,
+            summary_formatter: SummaryFormatter = SummaryMarkdown(),
+            refit=False,
+            reset=True,
     ):
         """
         Executes all modules in the pipeline in the correct order. This method call only transform on every module
@@ -177,11 +177,11 @@ class Pipeline(BaseTransformer):
         )
 
     def train(
-        self,
-        data: Union[pd.DataFrame, xr.Dataset],
-        summary: bool = True,
-        summary_formatter: SummaryFormatter = SummaryMarkdown(),
-        reset=True,
+            self,
+            data: Union[pd.DataFrame, xr.Dataset],
+            summary: bool = True,
+            summary_formatter: SummaryFormatter = SummaryMarkdown(),
+            reset=True,
     ):
         """
         Executes all modules in the pipeline in the correct order. This method calls fit and transform on each module
@@ -202,13 +202,13 @@ class Pipeline(BaseTransformer):
         )
 
     def _run(
-        self,
-        data: Union[pd.DataFrame, xr.Dataset],
-        mode: ComputationMode,
-        summary: bool,
-        summary_formatter: SummaryFormatter,
-        reset=False,
-        refit=False,
+            self,
+            data: Union[pd.DataFrame, xr.Dataset],
+            mode: ComputationMode,
+            summary: bool,
+            summary_formatter: SummaryFormatter,
+            reset=False,
+            refit=False,
     ):
 
         if reset:
@@ -267,11 +267,11 @@ class Pipeline(BaseTransformer):
         return data
 
     def add(
-        self,
-        *,
-        module: Union[BaseStep],
-        input_ids: List[int] = None,
-        target_ids: List[int] = None,
+            self,
+            *,
+            module: Union[BaseStep],
+            input_ids: List[int] = None,
+            target_ids: List[int] = None,
     ):
         """
         Add a new module with all of it's inputs to the pipeline.
@@ -478,7 +478,7 @@ class Pipeline(BaseTransformer):
             self.add(module=start_step, input_ids=[], target_ids=[])
         return self.start_steps[item][-1]
 
-    def create_summary(self, summary_formatter: SummaryFormatter =SummaryMarkdown(), start=None):
+    def create_summary(self, summary_formatter: SummaryFormatter = SummaryMarkdown(), start=None):
         summaries = self._get_summaries(start)
         return summary_formatter.create_summary(summaries, self.file_manager)
 
@@ -522,13 +522,13 @@ class Pipeline(BaseTransformer):
                 ordered_list.append(preds)
         return ordered_list
 
-    def draw(self, subpipelines=True, fig_width = 20, fig_height=20):
+    def draw(self, subpipelines=True, fig_width=20, fig_height=20):
         from schemdraw.util import Point
         from pywatts_pipeline.core.steps.pipeline_step import PipelineStep
         elements = {}
         w = 3
         h = 2
-        with schemdraw.Drawing() as d:
+        with schemdraw.Drawing(show=False) as d:
             d.config(fontsize=10, unit=.5)
             for i, l in enumerate(self.ordered_step_list()[::-1]):
                 pos = Point(((w + 1) * i, 0))
@@ -554,6 +554,11 @@ class Pipeline(BaseTransformer):
             for s in self.steps:
                 preds = list(s.input_steps.values()) + (list(s.targets.values()) if hasattr(s, "targets") else [])
                 for p in preds:
-                    d+= flow.Arrow().at(elements[p].E).to(elements[s].W)
-
-
+                    if (elements[p].center.y - elements[s].center.y) != 0:
+                        d += flow.Wire("Z", k=w / 8, arrow="->").at(elements[p].E).to(elements[s].W)
+                    elif (elements[s].center.x - elements[p].center.x) > w * 2:
+                        d += flow.Wire("n", k=-2 - (elements[s].center.x - elements[p].center.x) / (w * 2),
+                                       arrow="->").at(elements[p].S).to(elements[s].S)
+                    else:
+                        d += flow.Arrow().at(elements[p].E).to(elements[s].W)
+        return d
