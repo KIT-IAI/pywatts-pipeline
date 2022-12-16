@@ -228,7 +228,7 @@ class Pipeline(BaseTransformer):
             start = list(data.values())[0][_get_time_indexes(data)[0]][0].values
             self.refit(start)
 
-        if summary:
+        if summary and self.file_manager is not None:
             summary_data = self.create_summary(summary_formatter)
             return result, summary_data
 
