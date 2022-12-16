@@ -42,13 +42,21 @@ class BaseStep(ABC):
     ):
         self.default_run_setting = RunSetting(computation_mode=computation_mode)
         self.current_run_setting = self.default_run_setting.clone()
-        self.input_steps: Dict[str, "BaseStep"] = dict() if input_steps is None else input_steps
-        self.condition = condition
-
+        self.input_steps: Dict[str, "BaseStep"] = ({} if input_steps is None else input_steps)
+        self.targets: Dict[str, "BaseStep"] = {} if targets is None else targets
         self.name = name
         self.id = -1
         self.last = True
         self.buffer: Dict[str, xr.DataArray] = {}
+
+        self.condition = condition
+        self.transform_time = SummaryObjectList(
+            self.name + " Transform Time", category=SummaryCategory.TransformTime
+        )
+        self.training_time = SummaryObjectList(
+            self.name + " Training Time", category=SummaryCategory.FitTime
+        )
+        self.finished = False
 
     @abstractmethod
     def get_result(self, start: pd.Timestamp,
@@ -154,7 +162,10 @@ class BaseStep(ABC):
 
     def _should_stop(self, start, minimum_data) -> bool:
         # Fetch input and target data
-        input_result = self._get_inputs(self.input_steps, start, minimum_data=minimum_data)
+        input_result = self._get_inputs(
+            self.input_steps, start, minimum_data=minimum_data
+        )
+        target_result = self._get_inputs(self.targets, start, minimum_data=minimum_data)
 
         # Check if either the condition is True or some of the previous steps stopped (return_value is None)
         return (

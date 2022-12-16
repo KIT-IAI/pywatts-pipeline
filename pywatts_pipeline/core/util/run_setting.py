@@ -5,6 +5,7 @@ from pywatts_pipeline.core.summary.summary_formatter import (
     SummaryFormatter,
     SummaryMarkdown,
 )
+from pywatts_pipeline.core.util.filemanager import FileManager
 
 
 class RunSetting:
@@ -23,11 +24,14 @@ class RunSetting:
         summary_formatter: SummaryFormatter = SummaryMarkdown(),
         return_summary=False,
         fh = None,
+        fm :FileManager = None
     ):
+        # TODO encapsulate parameter that may be used by modules
         self.computation_mode = computation_mode
         self.summary_formatter = summary_formatter
         self.return_summary = return_summary
         self.fh = fh
+        self.fm = fm
 
     def update(self, run_setting: "RunSetting") -> "RunSetting":
         """
@@ -44,6 +48,7 @@ class RunSetting:
         setting.summary_formatter = run_setting.summary_formatter
         setting.return_summary = run_setting.return_summary
         setting.fh = run_setting.fh
+        setting.fm = run_setting.fm
         return setting
 
     def clone(self) -> "RunSetting":
@@ -56,7 +61,8 @@ class RunSetting:
             computation_mode=self.computation_mode,
             summary_formatter=self.summary_formatter,
             return_summary=self.return_summary,
-            fh=self.fh
+            fh=self.fh,
+            fm=self.fm,
         )
 
     def save(self) -> Dict:
@@ -75,3 +81,10 @@ class RunSetting:
         :rtype: RunSetting
         """
         return RunSetting(**load_information)
+
+    def transformer_parameters(self):
+        return {
+            "file_manager" : self.fm,
+            "fh": self.fh,
+        }
+

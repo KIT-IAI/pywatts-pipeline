@@ -119,15 +119,10 @@ class Step(BaseStep):
         self._compute(start, minimum_data)
         return self._pack_data(start, return_all=return_all, minimum_data=minimum_data)
 
-    def _fit(self, inputs: Dict[str, BaseStep]):
+    def _fit(self, inputs: Dict[str, BaseStep], target_step):
         # Fit the encapsulate module, if the input and the target is not stopped.
-        inps = dict(filter(lambda x: x[0] in inspect.signature(self.module.fit).parameters.keys(), inputs.items())) if "kwargs" not in inspect.signature(self.module.fit).parameters.keys()else inputs
         start_time = time.time()
-        #if isinstance(self.module, sktime.base.BaseObject):
-        #    inps = {
-        #        key: val.to_dataframe(key) if isinstance(val, xr.DataArray) else val for key, val in inps.items()
-        #    }
-        self.module.fit(**inps)
+        self.module.fit(**inputs, **target_step)
         self.training_time.set_kv("", time.time() - start_time)
 
     def _callbacks(self):
@@ -162,7 +157,10 @@ class Step(BaseStep):
             method = getattr(self.module, list(set(self.module.__dir__()) & {"transform", "predict"})[0])
         else:
             method = getattr(self.module, self.method)
+        input_data.update(self.current_run_setting.transformer_parameters())
         inps = dict(filter(lambda x: x[0] in inspect.signature(method).parameters.keys(), input_data.items()))
+        if "kwargs" in inspect.signature(method).parameters.keys():
+            inps.update(dict(filter(lambda x: isinstance(x[1], xr.DataArray), input_data.items())))
 
         start_time = time.time()
         # TODO use inspect to get all inputs needed for method
@@ -175,7 +173,7 @@ class Step(BaseStep):
             result = method(**inps)
             #result = result[list(result.data_vars)[0]]
         else:
-            result = method(**input_data)
+            result = method(**inps)
 
         self.transform_time.set_kv("", time.time() - start_time)
         return self._post_transform(result)
@@ -194,18 +192,9 @@ class Step(BaseStep):
         Args:
             inputs: Input time series
             target: Target time series
-
         Returns: Tuple of aligned input and target time series
-
         """
         # TODO handle different named dims
-        if len(inputs) == 0:
-            return  {}
-        for key, val in inputs.items():
-            if isinstance(val, xr.DataArray):
-                inputs[key] = inputs[key].rename({
-                    _get_time_indexes(val, get_all=False) : "time"
-                })
         dims = set()
         for inp in inputs.values():
             if isinstance(inp, xr.DataArray): # TODO hacky
@@ -289,11 +278,11 @@ class Step(BaseStep):
             ComputationMode.FitTransform,
             ComputationMode.Train,
         ]:
-            in_data, target = self.temporal_align_inputs(input_data, target)
+            in_data = self.temporal_align_inputs(input_data, target)
             self._fit(in_data, target)
         elif self.module is BaseEstimator:  # TODO more general for sktime
             logger.info("%s not fitted in Step %s", self.module.name, self.name)
-        in_data, _ = self.temporal_align_inputs(input_data)
+        in_data = self.temporal_align_inputs(input_data)
         self._transform(in_data)
 
     def _get_inputs(self, input_steps, start, minimum_data=(0, pd.Timedelta(0))):
@@ -354,7 +343,7 @@ class Step(BaseStep):
                     break
 
                 if len(condition_input) > 0:
-                    condition_input, _ = self.temporal_align_inputs(
+                    condition_input = self.temporal_align_inputs(
                         condition_input
                     )
                 if refit_condition.evaluate(**condition_input):
@@ -366,9 +355,12 @@ class Step(BaseStep):
         refit_input = self._get_inputs(
             self.input_steps, start - self.retrain_batch - self.lag
         )
+        refit_target = self._get_inputs(
+            self.targets, start - self.retrain_batch - self.lag
+        )
         # Refit only if enough data are available
         if list(filter(lambda x: x is not None, refit_input.values())):
-            refit_input, refit_target = self.temporal_align_inputs(
+            refit_input = self.temporal_align_inputs(
                 refit_input, refit_target
             )
             self.module.refit(**refit_input, **refit_target)

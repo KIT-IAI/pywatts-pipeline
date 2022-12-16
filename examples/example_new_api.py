@@ -62,7 +62,7 @@ if __name__ == "__main__":
 
     # TODO make 24 hour forecasts here...
     pipeline.add_new_api(AutoETS(), "ETS", {"y": "load_power_statistics", "fh":ForecastingHorizon(np.arange(1, 24), freq="1h"),
-                                            "cv" : ExpandingWindowSplitter(fh=ForecastingHorizon(np.arange(1, 24), freq="1h"))
+                                            #"cv" : ExpandingWindowSplitter(fh=ForecastingHorizon(np.arange(1, 24), freq="1h"))
                                             }, #method="update_predict",
                          #["load_power_statistics", "calendar"]},
                          callbacks=[LinePlotCallback("ETS")])
@@ -101,6 +101,8 @@ if __name__ == "__main__":
     test = data.iloc[6000:6100, :]
     result = pipeline.test(data=test, reset=True)
 
+
+    # TODO fix to folder stuff
     # Save the pipeline to a folder
     pipeline.to_folder("./pipe_getting_started")
 

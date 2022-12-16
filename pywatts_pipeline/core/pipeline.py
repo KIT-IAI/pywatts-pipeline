@@ -307,6 +307,7 @@ class Pipeline(BaseTransformer):
             summary_formatter=summary_formatter,
             return_summary=summary,
             fh=fh,
+            fm=self.file_manager,
         )
         for step in self.assembled_steps:
             step.set_run_setting(self.current_run_setting)
