@@ -19,7 +19,7 @@ class StartStep(BaseStep):
     def get_result(
         self, start: pd.Timestamp, return_all=False, minimum_data=(0, pd.Timedelta(0))
     ):
-        return self._pack_data(start, minimum_data=minimum_data)
+        return self._pack_data(start, minimum_data=minimum_data, return_all=return_all)
 
     @classmethod
     def load(cls, stored_step: dict, inputs, targets, module, file_manager):
