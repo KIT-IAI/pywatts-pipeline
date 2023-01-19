@@ -18,7 +18,7 @@ class StepInformation:
 
         if isinstance(self.step, Step):
             result_step = self.step.get_result_step(item)
-            self.pipeline.add(module=result_step, input_ids=[self.step.id])
+            self.pipeline.add_step(step=result_step, input_ids=[self.step.id])
             return StepInformation(result_step, self.pipeline)
         return self
 

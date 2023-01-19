@@ -7,6 +7,7 @@ import logging
 import pandas as pd
 import xarray as xr
 
+from pywatts_pipeline.core.exceptions.step_creation_exception import StepCreationException
 from pywatts_pipeline.core.util.computation_mode import ComputationMode
 from pywatts_pipeline.core.exceptions.kind_of_transform_does_not_exist_exception import (
     KindOfTransformDoesNotExistException,
@@ -201,10 +202,14 @@ class Base(ABC):
         """
 
         from pywatts_pipeline.core.steps.step_factory import StepFactory
+        pipeline = self._extract_pipeline(kwargs)
 
-        return StepFactory().create_step(
+        self.name = f"{self.name}_{len(pipeline.steps)}"
+        edges = {k : v.step.name for k, v in kwargs.items()}
+        return pipeline.add(
             self,
-            kwargs=kwargs,
+            name=self.name,
+            input_edges=edges,
             method=method,
             condition=condition,
             callbacks=callbacks if callbacks is not None else [],
@@ -214,7 +219,38 @@ class Base(ABC):
             #     retrain_batch=retrain_batch,
             lag=lag,
         )
+    @staticmethod
+    def _extract_pipeline(kwargs):
+        from pywatts_pipeline.core.steps.step_factory import StepInformation
 
+        pipeline = None
+        for input_step in kwargs.values():
+            if isinstance(input_step, StepInformation):
+                pipeline_temp = input_step.pipeline
+            elif isinstance(input_step, tuple):
+                # We assume that a tuple consists only of step informations and do not contain a pipeline.
+                pipeline_temp = input_step[0].pipeline
+                for step_information in input_step[1:]:
+                    if not pipeline_temp == step_information.pipeline:
+                        raise StepCreationException(
+                            f"A step can only be part of one pipeline. Assure that all inputs {kwargs}"
+                            f"are part of the same pipeline."
+                        )
+            else:
+                raise StepCreationException(f"The input step has an invalid type: {type(input_step)}")
+
+            if pipeline_temp is None:
+                raise StepCreationException(f"The input step {input_step} has no Pipeline.")
+
+            if pipeline is None:
+                pipeline = pipeline_temp
+
+            if not pipeline_temp == pipeline:
+                raise StepCreationException(
+                    f"A step can only be part of one pipeline. Assure that all inputs {kwargs}"
+                    f"are part of the same pipeline."
+                )
+        return pipeline
 
 class BaseTransformer(Base, ABC):
     """

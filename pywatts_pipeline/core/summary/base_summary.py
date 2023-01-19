@@ -76,6 +76,12 @@ class BaseSummary(Base, ABC):
                     f" corresponding step do not support {kwa}."
                 )
 
-        from pywatts_pipeline.core.steps.step_factory import StepFactory
+        pipeline = self._extract_pipeline(kwargs)
 
-        return StepFactory().create_summary(self, kwargs)
+        self.name = f"{self.name}_{len(pipeline.steps)}"
+        edges = {k : v.step.name for k, v in kwargs.items()}
+        return pipeline.add(
+            self,
+            name=self.name,
+            input_edges=edges,
+        )

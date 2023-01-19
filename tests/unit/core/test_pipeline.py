@@ -193,8 +193,8 @@ class TestPipeline(unittest.TestCase):
         self.assertEqual(7, len(self.pipeline.steps))
         modules = []
         for element in self.pipeline.steps:
-            if isinstance(element, Step) and not element.module in modules:
-                modules.append(element.module)
+            if isinstance(element[0], Step) and not element[0].module in modules:
+                modules.append(element[0].module)
         # One sklearn wrappers, one missing value detector
         self.assertEqual(2, len(modules))
 
@@ -236,7 +236,8 @@ class TestPipeline(unittest.TestCase):
         ds = xr.Dataset({'foo': ('time', [2, 3, 4, 5, 6, 7, 8]), 'time': time})
 
         subpipeline = Pipeline()
-        subpipeline.add(module=step)
+        # TODO probably we want to test add?
+        subpipeline.add_step(step=step)
 
         # BUG: In step_factory.py -> create_step the file_manager of the pipeline is accessed
         # and the pipeline is None... 
@@ -338,7 +339,7 @@ class TestPipeline(unittest.TestCase):
         result_mock = MagicMock()
         step_two.name = "mock"
         step_two.get_result.return_value = {"mock": result_mock}
-        self.pipeline.add(module=step_two, input_ids=[1])
+        self.pipeline.add_step(step=step_two, input_ids=[1])
         self.pipeline.current_run_setting = RunSetting(computation_mode=ComputationMode.Transform)
 
         result = self.pipeline.transform(x=input_mock)
@@ -359,7 +360,7 @@ class TestPipeline(unittest.TestCase):
         da2 = xr.DataArray([2, 3, 4, 3, 3, 1, 2], dims=["time"], coords={'time': time2})
         step_two.name = "mock"
         step_two.get_result.return_value = {"mock": da}
-        self.pipeline.add(module=step_two, input_ids=[1])
+        self.pipeline.add_step(step=step_two, input_ids=[1])
         self.pipeline.current_run_setting = RunSetting(computation_mode=ComputationMode.Transform)
 
         self.pipeline.transform(x=input_mock)
@@ -424,8 +425,8 @@ class TestPipeline(unittest.TestCase):
         second_step.finished = False
         second_step.get_result.return_value = {"Second": da}
 
-        self.pipeline.add(module=first_step)
-        self.pipeline.add(module=second_step)
+        self.pipeline.add_step(step=first_step)
+        self.pipeline.add_step(step=second_step)
 
         self.pipeline.test(pd.DataFrame({"test": [1, 2, 2, 3, 4], "test2": [2, 2, 2, 2, 2]},
                                         index=pd.DatetimeIndex(pd.date_range('2000-01-01', freq='24H', periods=5))),
@@ -461,8 +462,8 @@ class TestPipeline(unittest.TestCase):
         second_step.finished = False
         second_step.get_result.return_value = {"second": da}
 
-        self.pipeline.add(module=first_step)
-        self.pipeline.add(module=second_step)
+        self.pipeline.add_step(step=first_step)
+        self.pipeline.add_step(step=second_step)
 
         data = pd.DataFrame({"test": [1, 2, 2, 3, 4], "test2": [2, 2, 2, 2, 2]},
                             index=pd.DatetimeIndex(pd.date_range('2000-01-01', freq='24H', periods=5)))
@@ -500,8 +501,8 @@ class TestPipeline(unittest.TestCase):
         second_step.finished = False
         second_step.get_result.return_value = {"second": da}
 
-        self.pipeline.add(module=first_step)
-        self.pipeline.add(module=second_step)
+        self.pipeline.add_step(step=first_step)
+        self.pipeline.add_step(step=second_step)
 
         data = pd.DataFrame({"test": [1, 2, 2, 3, 4], "test2": [2, 2, 2, 2, 2]},
                             index=pd.DatetimeIndex(pd.date_range('2000-01-01', freq='24H', periods=5)))
@@ -571,7 +572,7 @@ class TestPipeline(unittest.TestCase):
         first_step = MagicMock()
         first_step.lag = pd.Timedelta("1d")
 
-        self.pipeline.add(module=first_step)
+        self.pipeline.add_step(step=first_step)
         self.pipeline.refit(pd.Timestamp("2000.01.02"))
 
         first_step.refit.assert_called_once_with(pd.Timestamp("2000.01.02"))
