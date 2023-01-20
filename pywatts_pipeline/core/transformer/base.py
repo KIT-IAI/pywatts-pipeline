@@ -204,11 +204,11 @@ class Base(ABC):
         from pywatts_pipeline.core.steps.step_factory import StepFactory
         pipeline = self._extract_pipeline(kwargs)
 
-        self.name = f"{self.name}_{len(pipeline.steps)}"
-        edges = {k : v.step.name for k, v in kwargs.items()}
+        name = f"{self.name}_{len(pipeline.steps)}"
+        edges = {k : v.step for k, v in kwargs.items()}
         return pipeline.add(
             self,
-            name=self.name,
+            name=name,
             input_edges=edges,
             method=method,
             condition=condition,

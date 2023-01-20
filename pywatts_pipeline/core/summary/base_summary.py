@@ -79,7 +79,7 @@ class BaseSummary(Base, ABC):
         pipeline = self._extract_pipeline(kwargs)
 
         self.name = f"{self.name}_{len(pipeline.steps)}"
-        edges = {k : v.step.name for k, v in kwargs.items()}
+        edges = {k : v.step for k, v in kwargs.items()}
         return pipeline.add(
             self,
             name=self.name,

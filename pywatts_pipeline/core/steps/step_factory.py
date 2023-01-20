@@ -1,7 +1,8 @@
 import inspect
 import warnings
-from typing import Tuple, Dict, Union, List, Callable
+from typing import Tuple, Dict, Union, List, Callable, Optional
 
+import pandas as pd
 import xarray as xr
 
 from pywatts_pipeline.core.callbacks import BaseCallback
@@ -20,6 +21,7 @@ from pywatts_pipeline.core.steps.step_information import (
 from pywatts_pipeline.core.steps.summary_step import SummaryStep
 from pywatts_pipeline.core.summary.base_summary import BaseSummary
 from pywatts_pipeline.core.transformer.base import Base
+from pywatts_pipeline.core.util.computation_mode import ComputationMode
 from pywatts_pipeline.core.util.filemanager import FileManager
 
 
@@ -29,17 +31,16 @@ class StepFactory:
     """
 
     def create_step(
-        self,
-        module: Base,
-        pipeline,
-        kwargs: Dict[str, Union[StepInformation, Tuple[StepInformation, ...]]],
-        method,
-        callbacks: List[Union[BaseCallback, Callable[[Dict[str, xr.DataArray]], None]]],
-        condition,
-        computation_mode,
-        refit_conditions,
-        #  retrain_batch,
-        lag,
+            self,
+            module: Base,
+            pipeline,
+            kwargs: Dict[str, Union[BaseStep, Tuple[BaseStep, ...]]],
+            method=None,
+            callbacks: Union[BaseCallback, Callable[[Dict[str, xr.DataArray]], None]] = None,
+            condition: Optional[Callable] = None,
+            computation_mode: ComputationMode = ComputationMode.Default,
+            refit_conditions: List[Union[Callable, bool]] = None,
+            lag: Optional[int] = pd.Timedelta(hours=0),
     ) -> Tuple[List[BaseStep], BaseStep, List[BaseStep]]:
         """
         Creates a appropriate step for the current situation.
@@ -116,7 +117,7 @@ class StepFactory:
 
         return new_steps, step, post_steps
 
-    def _check_and_extract_inputs(self, kwargs, module, set_last=True):
+    def _check_and_extract_inputs(self, kwargs: Dict[str, BaseStep], module, set_last=True):
         transform_arguments = inspect.signature(module.transform).parameters.keys()
         fit_arguments = inspect.signature(module.fit).parameters.keys()
         if "kwargs" not in transform_arguments and not isinstance(module, Pipeline):
@@ -149,17 +150,17 @@ class StepFactory:
             }
         return input_steps, target_steps
 
-    def _set_last_and_return(self, element, set_last=True):
+    def _set_last_and_return(self, element: BaseStep, set_last=True):
         if set_last:
-            element.step.last = False
-        return element.step
+            element.last = False
+        return element
 
     @staticmethod
-    def _createEitherOrStep(inputs: Tuple[StepInformation], pipeline):
+    def _createEitherOrStep(inputs: Tuple[BaseStep], pipeline):
         for input_step in inputs:
-            input_step.step.last = False
+            input_step.last = False
         step = EitherOrStep(
-            {x.step.name + f"{i}": x.step for i, x in enumerate(inputs)}
+            {x.name + f"{i}": x for i, x in enumerate(inputs)}
         )
         pipeline.add_step(step=step, input_ids=list(map(lambda x: x.step.id, inputs)))
         return StepInformation(step, pipeline)
@@ -167,46 +168,37 @@ class StepFactory:
     @staticmethod
     def _check_ins(kwargs):
         for input_step in kwargs.values():
-            if isinstance(input_step, StepInformation):
-                if len(input_step.step.targets) > 1:
+            if isinstance(input_step, BaseStep):
+                if len(input_step.targets) > 1:
                     raise StepCreationException(
-                        f"The step {input_step.step.name} has multiple outputs. "
+                        f"The step {input_step.name} has multiple outputs. "
                         "Adding such a step to the pipeline is ambigious. "
                         "Specifiy the desired column of your dataset by using step[<column_name>]",
                     )
-                elif isinstance(input_step.step, PipelineStep):
-                    raise StepCreationException(
-                        f"Please specify which result of {input_step.step.name} should be used, since this steps"
-                        f"may provide multiple results."
-                    )
+            elif isinstance(input_step, PipelineStep):
+                raise StepCreationException(
+                    f"Please specify which result of {input_step.name} should be used, since this steps"
+                    f"may provide multiple results."
+                )
             elif isinstance(input_step, Pipeline):
                 raise StepCreationException(
                     "Adding a pipeline as input might be ambigious. "
                     "Specifiy the desired column of your dataset by using pipeline[<column_name>]",
                 )
             elif isinstance(input_step, tuple):
-                # We assume that a tuple consists only of step informations and do not contain a pipeline.
-                if len(input_step[0].step.targets) > 1:
-                    raise StepCreationException(
-                        f"The step {input_step.step.name} has multiple outputs. Adding such a step to the pipeline is "
-                        "ambigious. "
-                        "Specifiy the desired column of your dataset by using step[<column_name>]",
-                    )
-
-                for step_information in input_step[1:]:
-
-                    if len(step_information.step.targets) > 1:
+                for step in input_step:
+                    if len(step.targets) > 1:
                         raise StepCreationException(
-                            f"The step {input_step.step.name} has multiple outputs. Adding such a step to the pipeline"
+                            f"The step {step.name} has multiple outputs. Adding such a step to the pipeline"
                             " is ambigious. "
                             "Specifiy the desired column of your dataset by using step[<column_name>]",
                         )
 
     def create_summary(
-        self,
-        module: BaseSummary,
-        pipeline: Pipeline,
-        kwargs: Dict[str, Union[StepInformation, Tuple[StepInformation, ...]]],
+            self,
+            module: BaseSummary,
+            pipeline: Pipeline,
+            kwargs: Dict[str, Union[BaseStep, Tuple[BaseStep, ...]]],
     ) -> Tuple[List[BaseStep], BaseStep, List[BaseStep]]:
         """
         TODO Add modules

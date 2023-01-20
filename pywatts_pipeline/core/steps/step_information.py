@@ -10,17 +10,14 @@ class StepInformation:
     """
 
     def __init__(self, step: BaseStep, pipeline):
-        self.step = step
+        if isinstance(step, BaseStep):
+            self.step = step.name
+        else:
+            self.step = step
         self.pipeline = pipeline
 
     def __getitem__(self, item: str):
-        from pywatts_pipeline.core.steps.step import Step
-
-        if isinstance(self.step, Step):
-            result_step = self.step.get_result_step(item)
-            self.pipeline.add_step(step=result_step, input_ids=[self.step.id])
-            return StepInformation(result_step, self.pipeline)
-        return self
+        return StepInformation(self.step + "__" + item, self.pipeline)
 
 
 class SummaryInformation:

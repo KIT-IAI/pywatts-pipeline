@@ -11,9 +11,10 @@ class ResultStep(BaseStep):
     This steps fetch the correct column if the previous step provides data with multiple columns as output
     """
 
-    def __init__(self, input_steps, buffer_element: str):
+    def __init__(self, input_steps, buffer_element: str, name:str):
         super().__init__(input_steps=input_steps)
         self.buffer_element = buffer_element
+        self.name = name
         # TODO should have own buffer
 
     def get_result(

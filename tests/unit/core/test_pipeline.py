@@ -20,13 +20,13 @@ pipeline_json = {'id': 1,
                  'modules': [{'class': 'SKLearnWrapper',
                               'is_fitted': False,
                               'module': 'pywatts.modules.wrappers.sklearn_wrapper',
-                              'name': 'StandardScaler',
+                              'name': 'StandardScaler_1',
                               'sklearn_module': os.path.join('test_pipeline', 'StandardScaler.pickle'),
                               'targets': []},
                              {'class': 'SKLearnWrapper',
                               'is_fitted': False,
                               'module': 'pywatts.modules.wrappers.sklearn_wrapper',
-                              'name': 'LinearRegression',
+                              'name': 'LinearRegression_2',
                               'sklearn_module': os.path.join('test_pipeline', 'LinearRegression.pickle'),
                               'targets': []}],
                  'steps': [{'class': 'StartStep',
@@ -192,9 +192,9 @@ class TestPipeline(unittest.TestCase):
         # Three start steps (test, test2, target), two regressors two detectors
         self.assertEqual(7, len(self.pipeline.steps))
         modules = []
-        for element in self.pipeline.steps:
-            if isinstance(element[0], Step) and not element[0].module in modules:
-                modules.append(element[0].module)
+        for element in self.pipeline.steps.values():
+            if isinstance(element, Step) and not element.module in modules:
+                modules.append(element.module)
         # One sklearn wrappers, one missing value detector
         self.assertEqual(2, len(modules))
 
@@ -501,8 +501,8 @@ class TestPipeline(unittest.TestCase):
         second_step.finished = False
         second_step.get_result.return_value = {"second": da}
 
-        self.pipeline.add_step(step=first_step)
-        self.pipeline.add_step(step=second_step)
+        self.pipeline._add_step(step=first_step, name="first")
+        self.pipeline._add_step(step=second_step, name="second")
 
         data = pd.DataFrame({"test": [1, 2, 2, 3, 4], "test2": [2, 2, 2, 2, 2]},
                             index=pd.DatetimeIndex(pd.date_range('2000-01-01', freq='24H', periods=5)))
