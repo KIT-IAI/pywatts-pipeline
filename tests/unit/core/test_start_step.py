@@ -12,9 +12,6 @@ class TestStartStep(unittest.TestCase):
     def test_load(self):
         params = {
             "index": "SomeIndex",
-            "target_ids": {},
-            "input_ids": {},
-            "id": -1,
             'default_run_setting': {'computation_mode': 4},
             "module": "pywatts_pipeline.core.steps.start_step",
             "class": "StartStep",

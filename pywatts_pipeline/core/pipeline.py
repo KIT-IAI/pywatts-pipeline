@@ -20,6 +20,7 @@ from pywatts_pipeline.core.exceptions.wrong_parameter_exception import (
 from pywatts_pipeline.core.steps.base_step import BaseStep
 from pywatts_pipeline.core.steps.start_step import StartStep
 from pywatts_pipeline.core.steps.step import Step
+from pywatts_pipeline.core.steps.either_or_step import EitherOrStep
 from pywatts_pipeline.core.steps.step_information import StepInformation
 from pywatts_pipeline.core.steps.summary_step import SummaryStep
 from pywatts_pipeline.core.summary.base_summary import BaseSummary
@@ -50,7 +51,9 @@ logging.getLogger("matplotlib").setLevel(logging.WARN)
 
 # TODO:
 #  * Check that the module is copied!
-#  * How does the new API work with multi target output regressors or with subpipelineing
+#  * How does the new API work with
+#       * multi target output regressors
+#       * or with subpipelineing -> No problem !
 class Pipeline(BaseTransformer):
     """
     The pipeline class is the central class of pyWATTS. It is responsible for
@@ -68,7 +71,6 @@ class Pipeline(BaseTransformer):
         self.est_dict = {}
         self.result = {}
         self.start_steps = {}
-        self.step_counter = 0
         if path is None:
             self.file_manager = None
         else:
@@ -88,6 +90,7 @@ class Pipeline(BaseTransformer):
         """
         TODO
         """
+        self.reset()
         self._pipeline_construction_informations.append([
             estimator, name, input_edges, {"callbacks": callbacks if not callbacks is None else [],
                                            "condition": condition,
@@ -101,7 +104,6 @@ class Pipeline(BaseTransformer):
     def _add(self, steps):
         self.steps = {}
         self.start_steps = {}
-        self.est_dict = {}
         from pywatts_pipeline.core.steps.step_factory import StepFactory
         step_informations = []
         for transformer, name, input_edges, add_params in steps:
@@ -129,9 +131,14 @@ class Pipeline(BaseTransformer):
         column = None
         if "__" in edge:
             edge, column = edge.split("__")
-
         if f"{edge}__{column}" in self.steps:
             return self.steps[f"{edge}__{column}"]
+        if isinstance(edge, tuple):
+            kwargs = {_edge: self._get_step(_edge) for _edge in edge}
+            step = EitherOrStep(kwargs)
+            edge = f"EitherOr_{len(self.steps)}"
+            self._add_step(step=step, name=edge)
+            return self.steps[edge]
         if edge in self.steps and not column is None:
             result_step = self.steps[edge].get_result_step(column)
             self._add_step(step=result_step, name=f"{edge}__{column}")
@@ -293,7 +300,6 @@ class Pipeline(BaseTransformer):
             reset=False,
             refit=False,
     ):
-
         if reset:
             self.reset()
 
@@ -345,25 +351,11 @@ class Pipeline(BaseTransformer):
         return data
 
     def _add_step(self, step: Union[BaseStep], name):
-        input_ids = list(map(lambda x: x.id, step.input_steps.values()))
-        target_ids = list(map(lambda x: x.id, step.targets.values()))
         self.steps[name] = step
-
-        # register modules in the pipeline
-        self._register_step(step)
-
         logger.info(
-            f"Add {self.steps[name]} to the pipeline. Inputs are {self._get_steps_by_ids(input_ids)}"
-            f"{'.' if not input_ids else f' and the target is {self._get_steps_by_ids(target_ids)}.'}"
+            f"Add {self.steps[name]} to the pipeline. Inputs are {self._find_step_names(step.input_steps)}"
+            f" and the target is {self._find_step_names(step.targets)}."
         )
-
-    def _get_steps_by_ids(self, ids: List[int]):
-        return list(filter(lambda x: x.id in ids, self.steps.values()))
-
-    def _register_step(self, step):
-        step_id = self.step_counter
-        self.step_counter += 1
-        step.id = step_id
 
     def save(self, fm: FileManager):
         """
@@ -389,6 +381,15 @@ class Pipeline(BaseTransformer):
         pipeline = cls.from_folder(load_information["pipeline_path"])
         return pipeline
 
+    def _find_step_names(self, steps):
+        names = {}
+        for input_key, step in steps.items():
+            for k, v in self.steps.items():
+                if id(step) == id(v):
+                    names[input_key] = k
+                    break
+        return names
+
     def to_folder(self, path: Union[str, Path]):
         """
         Saves the pipeline in pipeline.json in the specified folder.
@@ -402,8 +403,11 @@ class Pipeline(BaseTransformer):
         # 1. Iterate over steps and collect all modules -> With step_id to module_id
         #    Create for each step dict with information for restorage
         steps_for_storing = []
-        for step in self.steps.values():
+        for key, step in self.steps.items():
             step_json = step.get_json(save_file_manager)
+            step_json["key"] = key
+            step_json["targets"] = self._find_step_names(step.targets)
+            step_json["inputs"] = self._find_step_names(step.input_steps)
             if isinstance(step, Step):
                 if step.module in modules:
                     step_json["module_id"] = modules.index(step.module)
@@ -422,7 +426,7 @@ class Pipeline(BaseTransformer):
         stored_pipeline = {
             "name": "Pipeline",
             "id": 1,
-            "version": 1,
+            "version": 2,
             "modules": modules_for_storing,
             "steps": steps_for_storing,
             "path": self.file_manager.basic_path if self.file_manager else None,
@@ -470,18 +474,20 @@ class Pipeline(BaseTransformer):
 
         pipeline = Pipeline(file_manager_path)
         # 1. load all modules
+
         modules = {}  # create a dict of all modules with their id from the json
         for i, json_module in enumerate(json_dict["modules"]):
             modules[i] = pipeline._load_modules(json_module)
+            pipeline.est_dict[id(modules[i])] = modules[i]
 
         # 2. Load all steps
-        for step in json_dict["steps"]:
-            step = pipeline._load_step(modules, step)
-            pipeline.steps.append(step)
+        for step_json in json_dict["steps"]:
+            step = pipeline._load_step(modules, step_json)
+            pipeline._add_step(step, step_json["key"])
 
         pipeline.start_steps = {
-            element.index: (element, StepInformation(step=element, pipeline=pipeline))
-            for element in filter(lambda x: isinstance(x, StartStep), pipeline.steps)
+            element.index: element
+            for element in filter(lambda x: isinstance(x, StartStep), pipeline.steps.values())
         }
 
         return pipeline
@@ -497,16 +503,12 @@ class Pipeline(BaseTransformer):
         module = None
         if isinstance(klass, Step) or issubclass(klass, Step):
             module = modules[step["module_id"]]
+        inputs = {k: self.steps[v] for k, v in step["inputs"].items()}
+        targets = {k: self.steps[v] for k, v in step["targets"].items()}
         loaded_step = klass.load(
             step,
-            inputs={
-                key: self._get_steps_by_ids([int(step_id)])[0]
-                for step_id, key in step["input_ids"].items()
-            },
-            targets={
-                key: self._get_steps_by_ids([int(step_id)])[0]
-                for step_id, key in step["target_ids"].items()
-            },
+            inputs=inputs,
+            targets=targets,
             module=module,
             file_manager=self.file_manager,
         )
@@ -547,7 +549,7 @@ class Pipeline(BaseTransformer):
         :param start: The date of the first data used for retraining.
         :param end: The date of the last data used for retraining.
         """
-        for step in self.steps:
+        for step in self.steps.values():
             # A lag is needed, since if we have a 24 hour forecast we can evaluate the forecast not until 24 hours
             # are gone, since before not all target variables are available
             if isinstance(step, Step):

@@ -162,7 +162,6 @@ class StepFactory:
         step = EitherOrStep(
             {x.name + f"{i}": x for i, x in enumerate(inputs)}
         )
-        pipeline.add_step(step=step, input_ids=list(map(lambda x: x.step.id, inputs)))
         return StepInformation(step, pipeline)
 
     @staticmethod

@@ -240,7 +240,6 @@ class Step(BaseStep):
         )
         step.default_run_setting = RunSetting.load(stored_step["default_run_setting"])
         step.current_run_setting = step.default_run_setting.clone()
-        step.id = stored_step["id"]
         step.name = stored_step["name"]
         step.last = stored_step["last"]
         step.method = stored_step["method"]
@@ -319,7 +318,7 @@ class Step(BaseStep):
                 # TODO self.lag has to be named differently. It handles how much values should be
                 #  considered for retraining
                 condition_input = {
-                    key: value.step.get_result(start - self.lag)
+                    key: value.pipeline.steps[value.step].get_result(start - self.lag)
                     for key, value in refit_condition.kwargs.items()
                 }
                 if list(filter(lambda x: x is None, condition_input.values())):
@@ -360,4 +359,5 @@ class Step(BaseStep):
             self.result_steps[key] = ResultStep(
                 input_steps={"result": self}, buffer_element=key, name=self.name + "__" + key
             )
+            self.last = False
         return self.result_steps[key]

@@ -46,7 +46,6 @@ class EitherOrStep(BaseStep):
         :return: The restored eitherOrStep
         """
         step = cls(inputs)
-        step.id = stored_step["id"]
         step.name = stored_step["name"]
         step.last = stored_step["last"]
         return step

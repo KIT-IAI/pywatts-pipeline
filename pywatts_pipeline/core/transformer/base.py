@@ -159,7 +159,7 @@ class Base(ABC):
         computation_mode: ComputationMode = ComputationMode.Default,
         batch_size: Optional[pd.Timedelta] = None,
         refit_conditions: List[Union[Callable, bool]] = None,
-        lag: Optional[int] = pd.Timedelta(hours=0),
+        lag: Optional[int, pd.Timedelta] = pd.Timedelta(hours=0),
         retrain_batch: Optional[int] = pd.Timedelta(hours=24),
         **kwargs: Union[StepInformation, Tuple[StepInformation, ...]],
     ) -> StepInformation:
@@ -205,7 +205,7 @@ class Base(ABC):
         pipeline = self._extract_pipeline(kwargs)
 
         name = f"{self.name}_{len(pipeline.steps)}"
-        edges = {k : v.step for k, v in kwargs.items()}
+        edges = {k : tuple(vv.step for vv in v) if isinstance(v, tuple) else v.step for k, v in kwargs.items()}
         return pipeline.add(
             self,
             name=name,

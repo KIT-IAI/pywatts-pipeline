@@ -60,8 +60,7 @@ class ResultStep(BaseStep):
         :param module: The module wrapped by this step
         :return: Step
         """
-        step = cls(inputs, stored_step["buffer_element"])
-        step.id = stored_step["id"]
+        step = cls(inputs, stored_step["buffer_element"], name=stored_step["buffer_element"])
         step.name = stored_step["name"]
         step.last = stored_step["last"]
         return step

@@ -133,9 +133,6 @@ class BaseStep(ABC):
         :rtype: Dict
         """
         return {
-            "target_ids": {step.id: key for key, step in self.targets.items()},
-            "input_ids": {step.id: key for key, step in self.input_steps.items()},
-            "id": self.id,
             "module": self.__module__,
             "class": self.__class__.__name__,
             "name": self.name,

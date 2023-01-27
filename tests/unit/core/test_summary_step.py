@@ -61,11 +61,9 @@ class TestSummaryStep(unittest.TestCase):
                                 'class': 'SummaryStep',
                                 'condition': None,
                                 'default_run_setting': {'computation_mode': 4},
-                                'id': -1,
-                                'input_ids': {2: 'input'},
                                 'last': True,
                                 'method': None,
                                 'module': 'pywatts_pipeline.core.steps.summary_step',
                                 'name': 'test',
                                 'refit_conditions': [],
-                                'target_ids': {}}, json)
+                                }, json)
