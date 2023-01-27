@@ -526,8 +526,8 @@ class TestPipeline(unittest.TestCase):
         second_step.finished = False
         second_step.get_result.return_value = {"second": da}
 
-        pipeline.add(module=first_step)
-        pipeline.add(module=second_step)
+        pipeline._add_step(first_step, name="First")
+        pipeline._add_step(second_step, name="Second")
 
         data = pd.DataFrame({"test": [1, 2, 2, 3, 4], "test2": [2, 2, 2, 2, 2]},
                             index=pd.DatetimeIndex(pd.date_range('2000-01-01', freq='24H', periods=5)))
