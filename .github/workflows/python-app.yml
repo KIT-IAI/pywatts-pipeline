@@ -39,7 +39,7 @@ jobs:
       run: |
         git clone https://github.com/KIT-IAI/pyWATTS.git
         cd pyWATTS
-        git checkout 257_replace_sampler_and_clockshift
+        git checkout feature/257_replace_sampler_and_clockshift
         cd examples
         python example.py
         python example_keras.py
