@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from pywatts_pipeline.core.transformer.base import BaseEstimator
 from pywatts_pipeline.core.util.computation_mode import ComputationMode
 from pywatts_pipeline.core.steps.step import Step
 from pywatts_pipeline.core.util.run_setting import RunSetting
@@ -28,6 +29,26 @@ class TestStep(unittest.TestCase):
         step = Step(self.module_mock, self.step_mock, file_manager=MagicMock())
         step._fit(input_dict, {})
         self.module_mock.fit.assert_called_once_with(**input_dict)
+
+
+    @patch("pywatts_pipeline.core.steps.step._get_time_indexes", return_value=["time"])
+    @patch("pywatts_pipeline.core.steps.step.Step.temporal_align_inputs", return_value=(MagicMock(), MagicMock()))
+    @patch("pywatts_pipeline.core.steps.step.Step._transform")
+    @patch('__main__.isinstance', return_value=True)
+    def test_if_fitted_with_computation_mode(self, *args):
+        for computation_mode in [ComputationMode.Default, ComputationMode.FitTransform, ComputationMode.Train,
+                                 ComputationMode.Refit]:
+            with self.subTest():
+                module_mock = MagicMock(spec=BaseEstimator)
+                module_mock.transform = MagicMock()
+                module_mock.fit = MagicMock()
+                module_mock.is_fitted = False
+                module_mock.name = "MAGIC"
+
+                step = Step(module_mock, self.step_mock, file_manager=MagicMock())
+                step.current_run_setting.computation_mode = computation_mode
+                step._compute(MagicMock(), (0,pd.Timedelta(0)))
+                module_mock.fit.assert_called_once()
 
     @patch("builtins.open")
     @patch("pywatts_pipeline.core.steps.step.cloudpickle")

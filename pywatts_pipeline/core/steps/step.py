@@ -254,11 +254,12 @@ class Step(BaseStep):
             return
         self._last_computed_entry = _get_time_indexes(input_data, get_all=False, get_index=True)[-1]
 
-        if self.current_run_setting.computation_mode in [
-            ComputationMode.Default,
-            ComputationMode.FitTransform,
-            ComputationMode.Train,
-        ]:
+        if self.current_run_setting.computation_mode in [ComputationMode.Default,
+                                                         ComputationMode.FitTransform,
+                                                         ComputationMode.Train] \
+                or (self.current_run_setting.computation_mode == ComputationMode.Refit
+                    and isinstance(self.module, BaseEstimator)
+                    and not self.module.is_fitted):
             in_data, target = self.temporal_align_inputs(input_data, target)
             self._fit(in_data, target)
         elif self.module is BaseEstimator:  # TODO more general for sktime
