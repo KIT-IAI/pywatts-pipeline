@@ -22,11 +22,12 @@ class EitherOrStep(BaseStep):
         return self._pack_data(start, return_all=return_all, minimum_data=minimum_data)
 
     def _get_inputs(self, input_steps, start, minimum_data=(0, pd.Timedelta(0))):
+        results = []
         for step in input_steps.values():
             inp = step.get_result(start, minimum_data=minimum_data)
             if inp is not None:
-                return {self.name: inp}
-        return None
+                results.append(inp)
+        return {self.name: results[0]}
 
     @classmethod
     def load(cls, stored_step: dict, inputs, targets, module, file_manager):
