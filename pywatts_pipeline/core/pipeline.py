@@ -92,7 +92,7 @@ class Pipeline(BaseTransformer):
             start_step.update_buffer(x[key].copy(), start_step.index)
 
         # Get start date for the new calculation (last date of the previous one)
-        start = None if len(self.result) == 0 else get_last(self.result)
+        start = None if len(self.result) == 0 else get_last(self.result) + 1
         last_steps = list(
             filter(lambda x: x.last and not isinstance(x, SummaryStep), self.steps)
         )
