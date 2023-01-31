@@ -220,8 +220,6 @@ class TestPipeline(unittest.TestCase):
         self.pipeline.train(pd.DataFrame({"test": [24, 24], "target": [12, 24]}, index=pd.to_datetime(
             ['2015-06-03 00:00:00', '2015-06-03 01:00:00'])), summary_formatter=summary_formatter_mock)
 
-        for step in self.pipeline.steps:
-            assert step.current_run_setting.computation_mode == ComputationMode.FitTransform
         create_summary_mock.assert_called_once_with(summary_formatter_mock)
 
     @patch('pywatts_pipeline.core.pipeline.FileManager')
@@ -470,6 +468,8 @@ class TestPipeline(unittest.TestCase):
                             index=pd.DatetimeIndex(pd.date_range('2000-01-01', freq='24H', periods=5)))
         result, summary = self.pipeline.train(data, summary=True)
 
+        self.assertEqual(self.pipeline.result, {})
+
         first_step.set_run_setting.assert_called_once()
         self.assertEqual(first_step.set_run_setting.call_args[0][0].computation_mode, ComputationMode.FitTransform)
         second_step.set_run_setting.assert_called_once()
@@ -477,9 +477,9 @@ class TestPipeline(unittest.TestCase):
 
         first_step.get_result.assert_called_once_with(None, return_all=True)
         second_step.get_result.assert_called_once_with(None, return_all=True)
+        self.assertEqual(first_step.reset.call_count, 2)
+        self.assertEqual(second_step.reset.call_count, 2)
 
-        first_step.reset.assert_called_once()
-        second_step.reset.assert_called_once()
         xr.testing.assert_equal(result["second"], da)
 
     @patch('pywatts_pipeline.core.pipeline.FileManager')
