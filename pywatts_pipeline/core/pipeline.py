@@ -177,7 +177,6 @@ class Pipeline(BaseTransformer):
         data: Union[pd.DataFrame, xr.Dataset],
         summary: bool = True,
         summary_formatter: SummaryFormatter = SummaryMarkdown(),
-        reset=True,
     ):
         """
         Executes all modules in the pipeline in the correct order. This method calls fit and transform on each module
@@ -193,9 +192,16 @@ class Pipeline(BaseTransformer):
         :return: The result of all end points of the pipeline
         :rtype: Dict[xr.DataArray]
         """
-        return self._run(
-            data, ComputationMode.FitTransform, summary, summary_formatter, reset=reset
+        result = self._run(
+            data, ComputationMode.FitTransform, summary, summary_formatter, reset=True
         )
+        self.reset()
+        return result
+
+    def reset(self):
+        for step in self.steps:
+            self.result = {}
+            step.reset()
 
     def _run(
         self,
@@ -208,9 +214,7 @@ class Pipeline(BaseTransformer):
     ):
 
         if reset:
-            for step in self.steps:
-                self.result = {}
-                step.reset()
+            self.reset()
 
         self.current_run_setting = RunSetting(
             computation_mode=mode,
