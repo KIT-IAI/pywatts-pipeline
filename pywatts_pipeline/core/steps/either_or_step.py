@@ -16,6 +16,8 @@ class EitherOrStep(BaseStep):
         self.name = "EitherOr"
 
     def get_result(self, start, return_all=False, minimum_data=(0, pd.Timedelta(0))):
+        if self._should_stop(start, minimum_data):
+            return None
         input_data = self._get_inputs(self.input_steps, start, minimum_data)
         for key, res in input_data.items():
             self.update_buffer(res, key)
@@ -27,7 +29,9 @@ class EitherOrStep(BaseStep):
             inp = step.get_result(start, minimum_data=minimum_data)
             if inp is not None:
                 results.append(inp)
-        return {self.name: results[0]}
+        if results:
+            return {self.name: results[0]}
+        return None
 
     @classmethod
     def load(cls, stored_step: dict, inputs, targets, module, file_manager):
