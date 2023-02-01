@@ -169,11 +169,12 @@ class BaseStep(ABC):
 
         # Check if either the condition is True or some of the previous steps stopped (return_value is None)
         return (
-            (
-                self.condition is not None
+            self._input_stopped(input_result)
+            or (
+                self.current_run_setting.computation_mode in [ComputationMode.Refit, ComputationMode.Transform]
+                and self.condition is not None
                 and not self.condition(input_result, target_result)
             )
-            or self._input_stopped(input_result)
             or (self.current_run_setting.computation_mode in [ComputationMode.Default, ComputationMode.FitTransform,
                                                               ComputationMode.Refit] and self._input_stopped(target_result))
         )

@@ -32,6 +32,9 @@ class TestEitherOrStep(unittest.TestCase):
         step = EitherOrStep({"option1": self.step_one, "option2": self.step_two})
         step.get_result(None, None)
         xr.testing.assert_equal(step.buffer["EitherOr"], self.da2)
+        # All predessors need to be called to ensure that each is fitted.
+        self.step_one.get_result.assert_called()
+        self.step_two.get_result.assert_called()
 
     def test_load(self):
         params = {
