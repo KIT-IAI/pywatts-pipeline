@@ -13,29 +13,29 @@ from typing import Union, List, Dict, Optional, Callable
 import pandas as pd
 import xarray as xr
 
+from pywatts_pipeline.core.steps.either_or_step import EitherOrStep
+from pywatts_pipeline.core.summary.base_summary import BaseSummary
+from pywatts_pipeline.core.transformer.base import BaseTransformer
+from pywatts_pipeline.core.steps.base_step import BaseStep
+from pywatts_pipeline.core.util.run_setting import RunSetting
+from pywatts_pipeline.core.util.computation_mode import ComputationMode
 from pywatts_pipeline.core.exceptions.io_exceptions import IOException
+from pywatts_pipeline.core.util.filemanager import FileManager
+from pywatts_pipeline.core.steps.start_step import StartStep
+from pywatts_pipeline.core.steps.step import Step
+from pywatts_pipeline.core.steps.step_information import StepInformation
 from pywatts_pipeline.core.exceptions.wrong_parameter_exception import (
     WrongParameterException,
 )
-from pywatts_pipeline.core.steps.base_step import BaseStep
-from pywatts_pipeline.core.steps.start_step import StartStep
-from pywatts_pipeline.core.steps.step import Step
-from pywatts_pipeline.core.steps.either_or_step import EitherOrStep
-from pywatts_pipeline.core.steps.step_information import StepInformation
 from pywatts_pipeline.core.steps.summary_step import SummaryStep
-from pywatts_pipeline.core.summary.base_summary import BaseSummary
-from pywatts_pipeline.core.summary.summary_formatter import (
-    SummaryMarkdown,
-    SummaryFormatter,
-)
-from pywatts_pipeline.core.transformer.base import BaseTransformer
-from pywatts_pipeline.core.util.computation_mode import ComputationMode
-from pywatts_pipeline.core.util.filemanager import FileManager
-from pywatts_pipeline.core.util.run_setting import RunSetting
-from pywatts_pipeline.utils._pywatts_json_encoder import PyWATTSJsonEncoder
 from pywatts_pipeline.utils._xarray_time_series_utils import (
     _get_time_indexes,
     get_last,
+)
+from pywatts_pipeline.utils._pywatts_json_encoder import PyWATTSJsonEncoder
+from pywatts_pipeline.core.summary.summary_formatter import (
+    SummaryMarkdown,
+    SummaryFormatter,
 )
 
 logging.basicConfig(
@@ -152,7 +152,7 @@ class Pipeline(BaseTransformer):
             return self.start_steps[edge]
         raise Exception()
 
-    def transform(self, **data: xr.DataArray) -> xr.DataArray:
+    def transform(self, **x: xr.DataArray) -> xr.DataArray:
         """
         Transform the input into output, by performing all the step in this pipeline.
         Moreover, this method collects the results of the last steps in this pipeline.
@@ -164,16 +164,16 @@ class Pipeline(BaseTransformer):
         :return:The transformed data
         :rtype: xr.DataArray
         """
-        return self._transform(data)
+        return self._transform(x)
 
-    def _transform(self, data):
+    def _transform(self, x):
         # New data are arrived. Thus no step is finished anymore.
         for step in self.steps.values():
             step.finished = False
 
         # Fill the start_step buffers
         for key, (start_step) in self.start_steps.items():
-            start_step.update_buffer(data[key].copy(), start_step.index)
+            start_step.update_buffer(x[key].copy(), start_step.index)
 
         # Get start date for the new calculation (last date of the previous one)
         start = None if len(self.result) == 0 else get_last(self.result) + 1
@@ -222,7 +222,6 @@ class Pipeline(BaseTransformer):
     def set_params(self, **kwargs):
         """
         Set params of pipeline module.
-        # TODO describe parameters?
         """
         if "steps" in kwargs:
             self._add(kwargs.pop("steps"))
@@ -232,12 +231,12 @@ class Pipeline(BaseTransformer):
             self.name = kwargs.pop("name")
 
     def test(
-            self,
-            data: Union[pd.DataFrame, xr.Dataset],
-            summary: bool = True,
-            summary_formatter: SummaryFormatter = SummaryMarkdown(),
-            refit=False,
-            reset=True,
+        self,
+        data: Union[pd.DataFrame, xr.Dataset],
+        summary: bool = True,
+        summary_formatter: SummaryFormatter = SummaryMarkdown(),
+        refit=False,
+        reset=True,
     ):
         """
         Executes all modules in the pipeline in the correct order. This method call only transform on every module
@@ -245,6 +244,7 @@ class Pipeline(BaseTransformer):
         the pipeline.
 
         :param data: dataset which should be processed by the data
+        :type path: Union[pd.DataFrame, xr.Dataset]
         :param summary: A flag indicating if an additional summary should be returned or not.
         :type summary: bool
         :param summary_formatter: Determines the format of the summary.
@@ -273,6 +273,7 @@ class Pipeline(BaseTransformer):
         the pipeline.
 
         :param data: dataset which should be processed by the data
+        :type path: Union[pd.DataFrame, xr.Dataset]
         :param summary: A flag indicating if an additional summary should be returned or not.
         :type summary: bool
         :param summary_formatter: Determines the format of the summary.
@@ -292,13 +293,13 @@ class Pipeline(BaseTransformer):
             step.reset()
 
     def _run(
-            self,
-            data: Union[pd.DataFrame, xr.Dataset],
-            mode: ComputationMode,
-            summary: bool,
-            summary_formatter: SummaryFormatter,
-            reset=False,
-            refit=False,
+        self,
+        data: Union[pd.DataFrame, xr.Dataset],
+        mode: ComputationMode,
+        summary: bool,
+        summary_formatter: SummaryFormatter,
+        reset=False,
+        refit=False,
     ):
         if reset:
             self.reset()
@@ -326,11 +327,11 @@ class Pipeline(BaseTransformer):
 
     def _check_input(self, data):
         if isinstance(data, pd.DataFrame):
-            dataset = data.to_xarray()
-            data = {key: dataset[key] for key in dataset.data_vars}
+            ds = data.to_xarray()
+            data = {key: ds[key] for key in ds.data_vars}
             data.update({
-                key: xr.DataArray(coords={key: dataset.indexes[key]}, dims=[key])
-                for key, index in dataset.indexes.items()
+                key: xr.DataArray(coords={key: ds.indexes[key]}, dims=[key])
+                for key, index in ds.indexes.items()
             })
         elif isinstance(data, xr.Dataset):
             data = {key: data[key] for key in data.data_vars}
@@ -525,15 +526,6 @@ class Pipeline(BaseTransformer):
         return StepInformation(step=self.start_steps[item], pipeline=self)
 
     def create_summary(self, summary_formatter: SummaryFormatter = SummaryMarkdown(), start=None):
-        """
-        TODO
-        Args:
-            summary_formatter:
-            start:
-
-        Returns:
-
-        """
         summaries = self._get_summaries(start)
         return summary_formatter.create_summary(summaries, self.file_manager)
 
