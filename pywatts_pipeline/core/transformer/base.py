@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Union, Tuple, Callable, TYPE_CHECKING
 import logging
 import pandas as pd
+import sktime.base as skbase
 import xarray as xr
 
 from pywatts_pipeline.core.exceptions.step_creation_exception import StepCreationException
@@ -21,7 +22,7 @@ if TYPE_CHECKING:
     from pywatts_pipeline.core.steps.step_factory import StepInformation
 
 
-class Base(ABC):
+class Base(ABC, skbase.BaseEstimator):
     """
     # TODO inherit here from sktime base
     This is the base class of the modules. It manages the basic functionality of modules. BaseTransformer and
@@ -32,6 +33,7 @@ class Base(ABC):
     """
 
     def __init__(self, name: str):
+        super().__init__()
         self.name = name
         self.is_wrapper = False
         self.logger = logging.getLogger(name)
@@ -39,19 +41,14 @@ class Base(ABC):
         self.has_inverse_transform = False
         self.has_predict_proba = False
 
-    @abstractmethod
-    def get_params(self) -> Dict[str, object]:
+    def get_params(self, deep=False) -> Dict[str, object]:
         """
         Get params
         :return: Dict with params
         """
-
-    @abstractmethod
-    def set_params(self, **kwargs):
-        """
-        Set params
-        :return:
-        """
+        params = super().get_params(deep=deep)
+        del params["name"]
+        return params
 
     @abstractmethod
     def fit(self, **kwargs):
@@ -202,7 +199,6 @@ class Base(ABC):
         :rtype: StepInformation
         """
 
-        from pywatts_pipeline.core.steps.step_factory import StepFactory
         pipeline = self._extract_pipeline(kwargs)
         if self.name in pipeline.steps:
             name = f"{self.name}_{len(list(filter(lambda x: x.startswith(self.name), pipeline.steps)))}"
@@ -220,7 +216,6 @@ class Base(ABC):
             computation_mode=computation_mode,
             refit_conditions=[] if refit_conditions is None else refit_conditions
             if isinstance(refit_conditions, list) else [refit_conditions],
-            #     retrain_batch=retrain_batch,
             lag=lag,
         )
     @staticmethod
@@ -260,13 +255,12 @@ class BaseTransformer(Base, ABC):
     """
     The base class for all transformer modules. It provides a dummy fit method.
     """
-
+    _is_fitted = True
     def fit(self, **kwargs):
         """
         Dummy method of fit, which does nothing
         :return:
         """
-
 
 class BaseEstimator(Base, ABC):
     """
@@ -277,8 +271,12 @@ class BaseEstimator(Base, ABC):
     """
 
     def __init__(self, name: str):
+        self._is_fitted = False
         super().__init__(name)
-        self.is_fitted = False
+
+    @property
+    def is_fitted(self):
+        return self._is_fitted
 
     def save(self, fm: FileManager) -> Dict:
         """
@@ -304,5 +302,5 @@ class BaseEstimator(Base, ABC):
         :rtype: BaseEstimator
         """
         module = super(BaseEstimator, cls).load(load_information)
-        module.is_fitted = load_information["is_fitted"]
+        module._is_fitted = load_information["is_fitted"]
         return module

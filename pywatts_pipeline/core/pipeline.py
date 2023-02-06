@@ -11,32 +11,24 @@ from pathlib import Path
 from typing import Union, List, Dict, Optional, Callable
 
 import pandas as pd
+import sktime.base
 import xarray as xr
 
 from pywatts_pipeline.core.steps.either_or_step import EitherOrStep
 from pywatts_pipeline.core.summary.base_summary import BaseSummary
-from pywatts_pipeline.core.transformer.base import BaseTransformer
+from pywatts_pipeline.core.transformer.base import BaseTransformer, BaseEstimator
 from pywatts_pipeline.core.steps.base_step import BaseStep
 from pywatts_pipeline.core.util.run_setting import RunSetting
 from pywatts_pipeline.core.util.computation_mode import ComputationMode
 from pywatts_pipeline.core.exceptions.io_exceptions import IOException
-from pywatts_pipeline.core.exceptions.wrong_parameter_exception import (
-    WrongParameterException,
-)
-from pywatts_pipeline.core.steps.base_step import BaseStep
+from pywatts_pipeline.core.util.filemanager import FileManager
 from pywatts_pipeline.core.steps.start_step import StartStep
 from pywatts_pipeline.core.steps.step import Step
 from pywatts_pipeline.core.steps.step_information import StepInformation
-from pywatts_pipeline.core.steps.summary_step import SummaryStep
-from pywatts_pipeline.core.summary.summary_formatter import (
-    SummaryMarkdown,
-    SummaryFormatter,
+from pywatts_pipeline.core.exceptions.wrong_parameter_exception import (
+    WrongParameterException,
 )
-from pywatts_pipeline.core.transformer.base import BaseTransformer
-from pywatts_pipeline.core.util.computation_mode import ComputationMode
-from pywatts_pipeline.core.util.filemanager import FileManager
-from pywatts_pipeline.core.util.run_setting import RunSetting
-from pywatts_pipeline.utils._pywatts_json_encoder import PyWATTSJsonEncoder
+from pywatts_pipeline.core.steps.summary_step import SummaryStep
 from pywatts_pipeline.utils._xarray_time_series_utils import (
     _get_time_indexes,
     get_last,
@@ -44,6 +36,7 @@ from pywatts_pipeline.utils._xarray_time_series_utils import (
 from pywatts_pipeline.utils._pywatts_json_encoder import PyWATTSJsonEncoder
 from pywatts_pipeline.core.summary.summary_formatter import (
     SummaryMarkdown,
+    SummaryJSON,
     SummaryFormatter,
 )
 from pywatts_pipeline.utils.unique_id_generator import UniqueIDGenerator
@@ -60,7 +53,7 @@ logger.setLevel(logging.DEBUG)
 logging.getLogger("matplotlib").setLevel(logging.WARN)
 
 
-class Pipeline(BaseTransformer):
+class Pipeline(BaseEstimator):
     """
     The pipeline class is the central class of pyWATTS. It is responsible for
     * The interaction with the user
@@ -78,6 +71,7 @@ class Pipeline(BaseTransformer):
         self._pipeline_construction_informations = steps if steps is not None else []
         self.result = {}
         self.start_steps = {}
+        self._score = "rmse"
         self.id_generator = UniqueIDGenerator()
         if path is None:
             self.file_manager = None
@@ -190,6 +184,7 @@ class Pipeline(BaseTransformer):
         :return:The transformed data
         :rtype: xr.DataArray
         """
+        self.current_run_setting.update(RunSetting(computation_mode=ComputationMode.Transform))
         return self._transform(x)
 
     def _transform(self, x):
@@ -240,24 +235,45 @@ class Pipeline(BaseTransformer):
             result[key] = res
         return result
 
-    def get_params(self) -> Dict[str, object]:
+    def get_params(self, deep=False) -> Dict[str, object]:
         """
         Returns the parameter of a pipeline module
         :return: Dictionary containing information about this module
         :rtype: Dict
         """
-        return {}
+        params = {"steps": self._pipeline_construction_informations,
+                  "model_dict": self.model_dict,
+                  "path":self.file_manager.basic_path}
+        if not deep:
+            return params
+        for name, step in filter(lambda s: isinstance(s[1], Step), self.steps.items()):
+            step_params = step.module.get_params(deep=True)
+            params.update({f"{name}__{key}" : value for key, value in step_params.items()})
+        return params
+
 
     def set_params(self, **kwargs):
+        # TODO: Probably a list of used modules is better.
+        #  Recreate pipeline after a set is performed to ensure that no old information is used again.
+        #  See sktime compatible pywatts api. Assembled Step stuff.
         """
         Set params of pipeline module.
         """
         if "steps" in kwargs:
             self._add(kwargs.pop("steps"))
+        # TODO model_dict
         if "path" in kwargs:
             self.file_manager = FileManager(kwargs.pop("path"))
         if "name" in kwargs:
             self.name = kwargs.pop("name")
+        for name, step in filter(lambda s: isinstance(s[1], Step), self.steps.items()):
+            keys = list(filter(lambda k: k.startswith(name), kwargs.keys()))
+            step.module.set_params(**{
+                k[len(name) + 2:]: kwargs[k] for k in keys
+            })
+
+        # TODO should probably be a copy of self..
+        return self
 
     def test(
         self,
@@ -387,6 +403,8 @@ class Pipeline(BaseTransformer):
             f"Add {self.steps[name]} to the pipeline. Inputs are {self._find_step_names(step.input_steps)}"
             f" and the target is {self._find_step_names(step.targets)}."
         )
+        if hasattr(step, "module") and isinstance(step.module, BaseEstimator) and self.is_fitted:
+            self._is_fitted = step.module.is_fitted
 
     def save(self, fm: FileManager):
         """
@@ -576,6 +594,18 @@ class Pipeline(BaseTransformer):
             # are gone, since before not all target variables are available
             if isinstance(step, Step):
                 step.refit(start)
+
+    def set_score(self, name):
+        self._score = name
+
+    def score(self, data):
+        _, summary = self.test(data, summary_formatter=SummaryJSON())
+        #if self._score:
+        return list(summary["Summary"][self._score]["results"].values())[0] * -1 #TODO how I get the information if higher or lower ist better?
+            #summary = list(filter(lambda x: x.name==self._score, self.steps))[0]
+            #return list(summary.get_summaries(None).k_v.values())[0]
+        #else:
+         #   return summary[...]
 
     def draw(self):
         return visualise_pipeline(self.steps)

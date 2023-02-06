@@ -293,14 +293,12 @@ class TestPipeline(unittest.TestCase):
     @patch("pywatts_pipeline.core.pipeline.FileManager")
     def test_get_params(self, fm_mock):
         result = Pipeline().get_params()
-        self.assertEqual(result, {
-        })
+        self.assertEqual(result, {"steps":[], "model_dict":{}})
 
     def test_set_params(self):
         self.pipeline.set_params()
         self.assertEqual(self.pipeline.get_params(),
-                         {
-                         })
+                         {"steps":[], "model_dict":{}})
 
     def test__collect_batch_results(self):
         step_one = MagicMock()
@@ -543,7 +541,8 @@ class TestPipeline(unittest.TestCase):
 
         multi_regressor = SKLearnWrapper(lin_reg)(foo=self.pipeline["foo"], target=self.pipeline["target"],
                                                   target2=self.pipeline["target2"])
-        RMSE()(y=self.pipeline["target"], prediction=multi_regressor["target"])
+        rmse = RMSE()
+        rmse(y=self.pipeline["target"], prediction=multi_regressor["target"])
 
         time = pd.date_range('2000-01-01', freq='24H', periods=5)
 
