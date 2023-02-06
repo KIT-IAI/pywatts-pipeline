@@ -270,15 +270,11 @@ class Pipeline(BaseEstimator):
 
 
     def set_params(self, **kwargs):
-        # TODO: Probably a list of used modules is better.
-        #  Recreate pipeline after a set is performed to ensure that no old information is used again.
-        #  See sktime compatible pywatts api. Assembled Step stuff.
         """
         Set params of pipeline module.
         """
         if "steps" in kwargs:
             self._add(kwargs.pop("steps"))
-        # TODO model_dict
         if "path" in kwargs:
             self.file_manager = FileManager(kwargs.pop("path"))
         if "name" in kwargs:
