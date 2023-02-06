@@ -78,7 +78,11 @@ class BaseSummary(Base, ABC):
 
         pipeline = self._extract_pipeline(kwargs)
 
-        self.name = f"{self.name}_{len(pipeline.steps)}"
+        if self.name in pipeline.steps:
+            name = f"{self.name}_{len(list(filter(lambda x: x.startswith(self.name), pipeline.steps)))}"
+            warnings.warn(f"The step with name {self.name} is renamed to {name} due to naming conflicts.")
+        else:
+            name = self.name
         edges = {k : v.step for k, v in kwargs.items()}
         return pipeline.add(
             self,

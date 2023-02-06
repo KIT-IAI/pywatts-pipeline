@@ -43,7 +43,7 @@ pipeline_json = {'id': 1,
                             'condition': None,
                             'default_run_setting': {'computation_mode': 4},
                             'inputs': {'input': 'input'},
-                            'key': 'StandardScaler_1',
+                            'key': 'StandardScaler',
                             'last': False,
                             'method': None,
                             'module': 'pywatts_pipeline.core.steps.step',
@@ -55,8 +55,8 @@ pipeline_json = {'id': 1,
                             'class': 'Step',
                             'condition': None,
                             'default_run_setting': {'computation_mode': 4},
-                            'inputs': {'x': 'StandardScaler_1'},
-                            'key': 'LinearRegression_2',
+                            'inputs': {'x': 'StandardScaler'},
+                            'key': 'LinearRegression',
                             'last': True,
                             'method': None,
                             'module': 'pywatts_pipeline.core.steps.step',
@@ -241,10 +241,10 @@ class TestPipeline(unittest.TestCase):
         wrapped_lr = SKLearnWrapper(LinearRegression(), name="lr")
         wrapped_lr(x=self.pipeline["test"])
 
-        self.assertTrue(id(wrapped_lr) != self.pipeline.steps["lr_1"].module)
-        self.assertTrue(isinstance(self.pipeline.steps["lr_1"].module, SKLearnWrapper))
+        self.assertTrue(id(wrapped_lr) != self.pipeline.steps["lr"].module)
+        self.assertTrue(isinstance(self.pipeline.steps["lr"].module, SKLearnWrapper))
         self.assertTrue(isinstance(wrapped_lr, SKLearnWrapper))
-        self.assertEquals(wrapped_lr.get_params(), self.pipeline.steps["lr_1"].module.get_params())
+        self.assertEquals(wrapped_lr.get_params(), self.pipeline.steps["lr"].module.get_params())
 
     @patch("pywatts_pipeline.core.pipeline.FileManager")
     @patch('pywatts_pipeline.core.pipeline.json')
@@ -274,14 +274,14 @@ class TestPipeline(unittest.TestCase):
         result_step_one = MagicMock()
         result_step_two = MagicMock()
         merged_result = {
-            "step": result_step_one,
-            "step_1": result_step_two
+            "one": result_step_one,
+            "two": result_step_two
         }
 
         step_one.get_result.return_value = {"step": result_step_one}
         step_two.get_result.return_value = {"step_1": result_step_two}
 
-        result = self.pipeline._collect_results([step_one, step_two], None)
+        result = self.pipeline._collect_results({"one" : step_one, "two": step_two}, None)
 
         # Assert that steps are correclty called.
         step_one.get_result.assert_called_once_with(None, return_all=True)
@@ -317,7 +317,7 @@ class TestPipeline(unittest.TestCase):
         step_one.get_result.return_value = {"step_one": result_step_one}
         step_two.get_result.return_value = {"step_two": result_step_two}
 
-        result = self.pipeline._collect_results([step_one, step_two], None)
+        result = self.pipeline._collect_results({"step_one" : step_one, "step_two": step_two}, None)
 
         # Assert that steps are correclty called.
         step_one.get_result.assert_called_once_with(None, return_all=True)
@@ -342,7 +342,7 @@ class TestPipeline(unittest.TestCase):
         result = self.pipeline.transform(x=input_mock)
 
         step_two.get_result.assert_called_once_with(None, return_all=True)
-        self.assertEqual({"mock": result_mock}, result)
+        self.assertEqual({"step_two": result_mock}, result)
 
 
     @patch('pywatts_pipeline.core.pipeline.FileManager')
@@ -367,7 +367,7 @@ class TestPipeline(unittest.TestCase):
             call(None, return_all=True), call("20.12.2020", return_all=True)
         ], any_order=True)
         get_time_indexes_mock.assert_called_once()
-        xr.testing.assert_equal(get_time_indexes_mock.call_args[0][0]["mock"],
+        xr.testing.assert_equal(get_time_indexes_mock.call_args[0][0]["step_two"],
                                 da)
         self.assertFalse(get_time_indexes_mock.call_args[1]["get_all"])
     @patch("pywatts_pipeline.core.pipeline.FileManager")
@@ -562,7 +562,7 @@ class TestPipeline(unittest.TestCase):
         self.fm_mock.get_path.assert_called_once_with("summary.md")
         open_mock().__enter__.return_value.write.assert_called_once_with(summary)
 
-        self.assertTrue("target" in result.keys())
+        self.assertTrue("LinearRegression__target" in result.keys())
 
     @patch('pywatts_pipeline.core.pipeline.isinstance', return_value=True)
     def test_refit(self, isinstance_mock):

@@ -50,7 +50,6 @@ logging.getLogger("matplotlib").setLevel(logging.WARN)
 
 
 # TODO:
-#  * Check that the module is copied!
 #  * How does the new API work with
 #       * multi target output regressors
 #       * or with subpipelineing -> No problem !
@@ -88,7 +87,30 @@ class Pipeline(BaseTransformer):
             lag: Optional[int] = pd.Timedelta(hours=0),
             method=None):
         """
-        TODO
+        Add a transformer or estimator to the pipeline.
+        :param estimator: A pyWATTS transformer or estimator
+        :type estimator: Base
+        :param name: The name of the transformer or estimator. It needs to be unique.
+        :type name: str
+        :param input_edges: A dict that maps the input argument for the fit/transform/predict method to the name
+                            of the predecessor. E.g. `{"argument_name": "PreviousStepName"}` maps the output of the step
+                            `"PreviousStepName"` to the argument "argument_name" if fit, transform or something similar is called.
+        :type input_edges: Dict[str, str]
+        :param condition: An optional callable argument that check if the step should be executed.
+        :param callbacks: Callbacks to use after results are processed.
+        :type callbacks: List[BaseCallback, Callable[[Dict[str, xr.DataArray]]]]
+        :param refit_conditions: A List of Callables of BaseConditions, which contains a condition that indicates if
+                                 the module should be trained or not
+        :type refit_conditions: List[Union[BaseCondition, Callable]]
+        :param computation_mode: Determines the computation mode of the step. Could be ComputationMode.Train,
+                                 ComputationMode.Transform, and Computation.FitTransform
+        :type computation_mode: ComputationMode
+        :param lag: Needed for online learning. Determines what data can be used for retraining.
+                    E.g., when 24 hour forecasts are performed, a lag of 24 hours is needed, else the retraining would
+                    use future values as target values.
+        :type lag: pd.Timedelta
+        :param method: Determines which method should be called when executing the transfomrer or estimator.
+                       E.g. `predict`, `transform`, or `inverse_transform`.
         """
         self.reset()
         self._pipeline_construction_informations.append([
@@ -126,25 +148,22 @@ class Pipeline(BaseTransformer):
         return step_informations
 
     def _get_step(self, edge):
-        # TODO: We need to enable edge like "preprocessing__calendar". TODO check if this is already possible!
+        # TODO: We need to enable edge like "preprocessing__calendar". Check if this is already possible!
         #     - This selects the input "preprocessing" and selects the column "calendar"
-        column = None
-        if "__" in edge:
-            edge, column = edge.split("__")
-        if f"{edge}__{column}" in self.steps:
-            return self.steps[f"{edge}__{column}"]
+        if edge in self.steps:
+            return self.steps[edge]
         if isinstance(edge, tuple):
             kwargs = {_edge: self._get_step(_edge) for _edge in edge}
             step = EitherOrStep(kwargs)
             edge = f"EitherOr_{len(self.steps)}"
             self._add_step(step=step, name=edge)
             return self.steps[edge]
-        if edge in self.steps and not column is None:
-            result_step = self.steps[edge].get_result_step(column)
-            self._add_step(step=result_step, name=f"{edge}__{column}")
+        if "__" in edge:
+            new_edge = edge.split("__")[0]
+            column = edge[len(new_edge) + 2:]
+            result_step = self.steps[new_edge].get_result_step(column)
+            self._add_step(step=result_step, name=f"{new_edge}__{column}")
             return result_step
-        if edge in self.steps and column is None:
-            return self.steps[edge]
         if not edge in self.steps:
             start_step = StartStep(edge)
             self.start_steps[edge] = start_step
@@ -177,8 +196,7 @@ class Pipeline(BaseTransformer):
 
         # Get start date for the new calculation (last date of the previous one)
         start = None if len(self.result) == 0 else get_last(self.result) + 1
-        last_steps = list(
-            map(lambda x: x, filter(lambda x: x.last and not isinstance(x, SummaryStep), self.steps.values())))
+        last_steps = dict(filter(lambda x: x[1].last and not isinstance(x[1], SummaryStep), self.steps.items()))
         result = self._collect_results(last_steps, start)
 
         # Store result in self.result.
@@ -193,11 +211,15 @@ class Pipeline(BaseTransformer):
     def _collect_results(self, last_steps, start):
         # Note the return value is None if none of the inputs provide a result for this step...
         result = {}
-        for i, step in enumerate(last_steps):
+        for i, (name, step) in enumerate(last_steps.items()):
             res = step.get_result(start, return_all=True)
             if res is not None:
-                for key, value in res.items():
-                    result = self._add_to_result(i, key, value, result)
+                if len(res) == 1:
+                    result = self._add_to_result(i, name, list(res.values())[0], result)
+                else:
+                    for key, value in res.items():
+                        result = self._add_to_result(i, name + "__" + key, value, result)
+
         return result
 
     @staticmethod

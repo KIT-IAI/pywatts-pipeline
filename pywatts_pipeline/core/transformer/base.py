@@ -1,6 +1,7 @@
 # pylint: disable=W0233
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Union, Tuple, Callable, TYPE_CHECKING
 import logging
@@ -203,8 +204,11 @@ class Base(ABC):
 
         from pywatts_pipeline.core.steps.step_factory import StepFactory
         pipeline = self._extract_pipeline(kwargs)
-
-        name = f"{self.name}_{len(pipeline.steps)}"
+        if self.name in pipeline.steps:
+            name = f"{self.name}_{len(list(filter(lambda x: x.startswith(self.name), pipeline.steps)))}"
+            warnings.warn(f"The step with name {self.name} is renamed to {name} due to naming conflicts.")
+        else:
+            name = self.name
         edges = {k : tuple(vv.step for vv in v) if isinstance(v, tuple) else v.step for k, v in kwargs.items()}
         return pipeline.add(
             self,
