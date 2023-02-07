@@ -64,7 +64,7 @@ class Step(BaseStep):
                      Union[BaseCallback, Callable[[Dict[str, xr.DataArray]], None]]
                  ] = None,
                  condition=None,
-                 refit_conditions: List[BaseCondition] = None,
+                 refit_conditions:List[BaseCondition]=None,
                  retrain_batch=pd.Timedelta(hours=24),
                  lag=pd.Timedelta(hours=24)):
         super().__init__(
@@ -200,7 +200,7 @@ class Step(BaseStep):
         )
 
         return {key: result[key] for key in inputs.keys()}, {
-            key: result[key] for key in target.keys()}
+                key: result[key] for key in target.keys()}
 
     @classmethod
     def load(cls, stored_step: Dict, inputs, targets, module, file_manager):
@@ -249,8 +249,7 @@ class Step(BaseStep):
     def _compute(self, start, minimum_data):
         input_data = self._get_inputs(self.input_steps, start, minimum_data)
         target = self._get_inputs(self.targets, start, minimum_data)
-        if not self._last_computed_entry is None and self._last_computed_entry >= \
-                _get_time_indexes(input_data, get_all=False, get_index=True)[-1]:
+        if not self._last_computed_entry is None and self._last_computed_entry >= _get_time_indexes(input_data, get_all=False, get_index=True)[-1]:
             return
         self._last_computed_entry = _get_time_indexes(input_data, get_all=False, get_index=True)[-1]
 
@@ -321,7 +320,7 @@ class Step(BaseStep):
                     key: value.pipeline.steps[value.step].get_result(start - self.lag)
                     for key, value in refit_condition.kwargs.items()
                 }
-                if list(filter(lambda x: x is None, condition_input.values())):
+                if list(filter(lambda x: x is None,condition_input.values())):
                     break
 
                 if len(condition_input) > 0:
@@ -331,6 +330,7 @@ class Step(BaseStep):
                 if refit_condition.evaluate(**condition_input):
                     self._refit(start)
                     break
+
 
     def _refit(self, start):
         refit_input = self._get_inputs(

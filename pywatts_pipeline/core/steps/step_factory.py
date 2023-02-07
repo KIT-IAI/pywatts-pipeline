@@ -46,7 +46,7 @@ class StepFactory:
         Creates a appropriate step for the current situation.
 
         :param module: The module which should be added to the pipeline
-        :param pipeline: TODO
+        :param pipeline: The pipeline to which the module should be added
         :param kwargs: The input steps for the current step
         :param targets: The target steps for the currrent step
         :param callbacks: Callbacks to use after results are processed.
@@ -75,12 +75,8 @@ class StepFactory:
             del kwargs["use_probabilistic_transform"]
 
         self._check_ins(kwargs)
-
         new_steps = self._create_predessor_steps(kwargs, pipeline)
-
-        input_steps, target_steps = self._check_and_extract_inputs(
-            kwargs, module
-        )
+        input_steps, target_steps = self._check_and_extract_inputs(kwargs, module)
 
         if isinstance(module, Pipeline):
             step = PipelineStep(
@@ -200,7 +196,6 @@ class StepFactory:
             kwargs: Dict[str, Union[BaseStep, Tuple[BaseStep, ...]]],
     ) -> Tuple[List[BaseStep], BaseStep, List[BaseStep]]:
         """
-        TODO Add modules
         Uses a Summary, adds it to the pipeline, creates a summary step and returns the summary information
         Args:
             module: The summary that should be added

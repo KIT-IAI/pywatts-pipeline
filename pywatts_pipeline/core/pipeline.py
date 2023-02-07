@@ -49,10 +49,6 @@ logger.setLevel(logging.DEBUG)
 logging.getLogger("matplotlib").setLevel(logging.WARN)
 
 
-# TODO:
-#  * How does the new API work with
-#       * multi target output regressors
-#       * or with subpipelineing -> No problem !
 class Pipeline(BaseTransformer):
     """
     The pipeline class is the central class of pyWATTS. It is responsible for
@@ -148,8 +144,6 @@ class Pipeline(BaseTransformer):
         return step_informations
 
     def _get_step(self, edge):
-        # TODO: We need to enable edge like "preprocessing__calendar". Check if this is already possible!
-        #     - This selects the input "preprocessing" and selects the column "calendar"
         if edge in self.steps:
             return self.steps[edge]
         if isinstance(edge, tuple):

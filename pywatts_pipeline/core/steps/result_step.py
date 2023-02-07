@@ -27,18 +27,13 @@ class ResultStep(BaseStep):
 
         # TODO use _pack_data
         # TODO can we get rid off get_all?
-        result = list(self.input_steps.values())[0].get_result(
-            start, return_all=True, minimum_data=minimum_data
-        )
+        result = list(self.input_steps.values())[0].get_result(start, return_all=True, minimum_data=minimum_data)
 
         if result is None or self.buffer_element not in result.keys():
             return None
-
         if not return_all:
             return result[self.buffer_element]
-
         return {self.buffer_element: result[self.buffer_element]}
-
 
     def get_json(self, fm: FileManager) -> Dict:
         """
