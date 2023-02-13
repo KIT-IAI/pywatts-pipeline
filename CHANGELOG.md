@@ -1,6 +1,7 @@
 ## 0.X.0 
 
 ### Added
+  * Enable drawing of the pipeline ([#12](https://github.com/KIT-IAI/pywatts-pipeline/issues/12))
 
 
 ### Changed
