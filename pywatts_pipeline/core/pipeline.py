@@ -37,6 +37,7 @@ from pywatts_pipeline.core.summary.summary_formatter import (
     SummaryMarkdown,
     SummaryFormatter,
 )
+from pywatts_pipeline.utils.unique_id_generator import UniqueIDGenerator
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -60,19 +61,20 @@ class Pipeline(BaseTransformer):
     :type path: str
     """
 
-    def __init__(self, path: Optional[str] = ".", name="Pipeline", steps=None):
+    def __init__(self, path: Optional[str] = ".", name="Pipeline", steps=None, model_dict=None):
         super().__init__(name)
         self.steps: Dict[str, BaseStep] = {}
-        self.est_dict = {}
+        self.model_dict = model_dict if model_dict is not None else {}
+        self._pipeline_construction_informations = steps if steps is not None else []
         self.result = {}
         self.start_steps = {}
+        self.id_generator = UniqueIDGenerator()
         if path is None:
             self.file_manager = None
         else:
             self.file_manager = FileManager(path)
-        self._pipeline_construction_informations = steps if steps is not None else []
         if not steps is None:
-            self._add(steps)
+            self._add(self._pipeline_construction_informations)
         self.current_run_setting = None
 
     def add(self, estimator, name, input_edges,
@@ -109,14 +111,18 @@ class Pipeline(BaseTransformer):
                        E.g. `predict`, `transform`, or `inverse_transform`.
         """
         self.reset()
-        self._pipeline_construction_informations.append([
-            estimator, name, input_edges, {"callbacks": callbacks if not callbacks is None else [],
+        unique_id = self.id_generator.get_id(estimator)
+        if not unique_id in self.model_dict:
+            self.model_dict[unique_id] = deepcopy(estimator)
+
+        self._pipeline_construction_informations.append(
+            [unique_id, name, input_edges, {"callbacks": callbacks if not callbacks is None else [],
                                            "condition": condition,
                                            "computation_mode": computation_mode,
                                            "refit_conditions": refit_conditions if not refit_conditions is None else [],
                                            "lag": lag,
-                                           "method": method}
-        ])
+                                           "method": method}]
+        )
         return self._add(self._pipeline_construction_informations)[-1]
 
     def _add(self, steps):
@@ -124,16 +130,13 @@ class Pipeline(BaseTransformer):
         self.start_steps = {}
         from pywatts_pipeline.core.steps.step_factory import StepFactory
         step_informations = []
-        for transformer, name, input_edges, add_params in steps:
-            if id(transformer) not in self.est_dict:
-                self.est_dict[id(transformer)] = deepcopy(transformer)
-
-            transformer = self.est_dict[id(transformer)]
+        for model_id, name, input_edges, add_params in steps:
+            model = self.model_dict[model_id]
             kwargs = {key: self._get_step(edge) for key, edge in input_edges.items()}
-            if isinstance(transformer, BaseSummary):
-                pre_steps, step, post_steps = StepFactory().create_summary(transformer, self, kwargs)
+            if isinstance(model, BaseSummary):
+                pre_steps, step, post_steps = StepFactory().create_summary(model, self, kwargs)
             else:
-                pre_steps, step, post_steps = StepFactory().create_step(module=transformer, kwargs=kwargs, **add_params,
+                pre_steps, step, post_steps = StepFactory().create_step(module=model, kwargs=kwargs, **add_params,
                                                                         pipeline=self)
             for _step in pre_steps:
                 self._add_step(_step, _step.name)
@@ -495,7 +498,7 @@ class Pipeline(BaseTransformer):
         modules = {}  # create a dict of all modules with their id from the json
         for i, json_module in enumerate(json_dict["modules"]):
             modules[i] = pipeline._load_modules(json_module)
-            pipeline.est_dict[id(modules[i])] = modules[i]
+            pipeline.model_dict[id(modules[i])] = modules[i]
 
         # 2. Load all steps
         for step_json in json_dict["steps"]:
