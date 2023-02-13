@@ -1,12 +1,14 @@
 # pylint: disable=W0233
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Union, Tuple, Callable, TYPE_CHECKING
 import logging
 import pandas as pd
 import xarray as xr
 
+from pywatts_pipeline.core.exceptions.step_creation_exception import StepCreationException
 from pywatts_pipeline.core.util.computation_mode import ComputationMode
 from pywatts_pipeline.core.exceptions.kind_of_transform_does_not_exist_exception import (
     KindOfTransformDoesNotExistException,
@@ -158,7 +160,7 @@ class Base(ABC):
         computation_mode: ComputationMode = ComputationMode.Default,
         batch_size: Optional[pd.Timedelta] = None,
         refit_conditions: List[Union[Callable, bool]] = None,
-        lag: Optional[int] = pd.Timedelta(hours=0),
+        lag: Optional[int, pd.Timedelta] = pd.Timedelta(hours=0),
         retrain_batch: Optional[int] = pd.Timedelta(hours=24),
         **kwargs: Union[StepInformation, Tuple[StepInformation, ...]],
     ) -> StepInformation:
@@ -201,10 +203,17 @@ class Base(ABC):
         """
 
         from pywatts_pipeline.core.steps.step_factory import StepFactory
-
-        return StepFactory().create_step(
+        pipeline = self._extract_pipeline(kwargs)
+        if self.name in pipeline.steps:
+            name = f"{self.name}_{len(list(filter(lambda x: x.startswith(self.name), pipeline.steps)))}"
+            warnings.warn(f"The step with name {self.name} is renamed to {name} due to naming conflicts.")
+        else:
+            name = self.name
+        edges = {k : tuple(vv.step for vv in v) if isinstance(v, tuple) else v.step for k, v in kwargs.items()}
+        return pipeline.add(
             self,
-            kwargs=kwargs,
+            name=name,
+            input_edges=edges,
             method=method,
             condition=condition,
             callbacks=callbacks if callbacks is not None else [],
@@ -214,7 +223,38 @@ class Base(ABC):
             #     retrain_batch=retrain_batch,
             lag=lag,
         )
+    @staticmethod
+    def _extract_pipeline(kwargs):
+        from pywatts_pipeline.core.steps.step_factory import StepInformation
 
+        pipeline = None
+        for input_step in kwargs.values():
+            if isinstance(input_step, StepInformation):
+                pipeline_temp = input_step.pipeline
+            elif isinstance(input_step, tuple):
+                # We assume that a tuple consists only of step informations and do not contain a pipeline.
+                pipeline_temp = input_step[0].pipeline
+                for step_information in input_step[1:]:
+                    if not pipeline_temp == step_information.pipeline:
+                        raise StepCreationException(
+                            f"A step can only be part of one pipeline. Assure that all inputs {kwargs}"
+                            f"are part of the same pipeline."
+                        )
+            else:
+                raise StepCreationException(f"The input step has an invalid type: {type(input_step)}")
+
+            if pipeline_temp is None:
+                raise StepCreationException(f"The input step {input_step} has no Pipeline.")
+
+            if pipeline is None:
+                pipeline = pipeline_temp
+
+            if not pipeline_temp == pipeline:
+                raise StepCreationException(
+                    f"A step can only be part of one pipeline. Assure that all inputs {kwargs}"
+                    f"are part of the same pipeline."
+                )
+        return pipeline
 
 class BaseTransformer(Base, ABC):
     """

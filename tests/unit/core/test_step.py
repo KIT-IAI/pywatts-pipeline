@@ -18,7 +18,6 @@ class TestStep(unittest.TestCase):
         self.module_mock.transform
         self.module_mock.name = "test"
         self.step_mock = MagicMock()
-        self.step_mock.id = 2
 
     def tearDown(self) -> None:
         self.module_mock = None
@@ -67,10 +66,7 @@ class TestStep(unittest.TestCase):
              call(os.path.join("folder", "test_condition.pickle"), "rb")],
             any_order=True)
         self.assertEqual(json, {
-            "target_ids": {},
             'method': None,
-            "input_ids": {},
-            "id": -1,
             'default_run_setting': {'computation_mode': 4},
             "refit_conditions": [],
             "module": "pywatts_pipeline.core.steps.step",
@@ -102,10 +98,7 @@ class TestStep(unittest.TestCase):
              call(os.path.join("folder", "test_refit_conditions.pickle"), "rb")],
             any_order=True)
         self.assertEqual(json, {
-            "target_ids": {},
             # Same as for test_load.
-            "input_ids": {},
-            "id": -1,
             'method': None,
             'default_run_setting': {'computation_mode': 4},
             "refit_conditions": [os.path.join("folder", "test_refit_conditions.pickle")],
@@ -213,10 +206,7 @@ class TestStep(unittest.TestCase):
 
     def test_load(self):
         step_config = {
-            "target_ids": {},
-            "input_ids": {2: 'x'},
             'default_run_setting': {'computation_mode': 3},
-            "id": -1,
             'method': None,
             "module": "pywatts_pipeline.core.steps.step",
             "class": "Step",
@@ -229,7 +219,6 @@ class TestStep(unittest.TestCase):
         step = Step.load(step_config, {'x': self.step_mock}, None, self.module_mock, None)
 
         self.assertEqual(step.name, "test")
-        self.assertEqual(step.id, -1)
         self.assertEqual(step.get_json("file"), step_config)
         self.assertEqual(step.module, self.module_mock)
 
@@ -240,13 +229,10 @@ class TestStep(unittest.TestCase):
                           'class': 'Step',
                           'default_run_setting': {'computation_mode': 4},
                           'condition': None,
-                          'id': -1,
-                          'input_ids': {},
                           'last': True,
                           'method': None,
                           'module': 'pywatts_pipeline.core.steps.step',
                           'name': 'test',
-                          'target_ids': {},
                           'refit_conditions': []}, json)
 
     def test_set_run_setting(self):

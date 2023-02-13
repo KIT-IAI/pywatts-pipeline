@@ -76,6 +76,16 @@ class BaseSummary(Base, ABC):
                     f" corresponding step do not support {kwa}."
                 )
 
-        from pywatts_pipeline.core.steps.step_factory import StepFactory
+        pipeline = self._extract_pipeline(kwargs)
 
-        return StepFactory().create_summary(self, kwargs)
+        if self.name in pipeline.steps:
+            name = f"{self.name}_{len(list(filter(lambda x: x.startswith(self.name), pipeline.steps)))}"
+            warnings.warn(f"The step with name {self.name} is renamed to {name} due to naming conflicts.")
+        else:
+            name = self.name
+        edges = {k : v.step for k, v in kwargs.items()}
+        return pipeline.add(
+            self,
+            name=self.name,
+            input_edges=edges,
+        )

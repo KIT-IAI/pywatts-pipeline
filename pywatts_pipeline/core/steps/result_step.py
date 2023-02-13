@@ -11,9 +11,10 @@ class ResultStep(BaseStep):
     This steps fetch the correct column if the previous step provides data with multiple columns as output
     """
 
-    def __init__(self, input_steps, buffer_element: str):
+    def __init__(self, input_steps, buffer_element: str, name:str):
         super().__init__(input_steps=input_steps)
         self.buffer_element = buffer_element
+        self.name = name
         # TODO should have own buffer
 
     def get_result(
@@ -26,19 +27,13 @@ class ResultStep(BaseStep):
 
         # TODO use _pack_data
         # TODO can we get rid off get_all?
-        if not return_all:
-            result = list(self.input_steps.values())[0].get_result(
-                start, self.buffer_element, minimum_data=minimum_data
-            )
-        else:
-            result = {
-                self.buffer_element: list(self.input_steps.values())[0].get_result(
-                    start, self.buffer_element, minimum_data=minimum_data
-                )
-            }
+        result = list(self.input_steps.values())[0].get_result(start, return_all=True, minimum_data=minimum_data)
+
         if result is None or self.buffer_element not in result.keys():
             return None
-        return result[self.buffer_element]
+        if not return_all:
+            return result[self.buffer_element]
+        return {self.buffer_element: result[self.buffer_element]}
 
     def get_json(self, fm: FileManager) -> Dict:
         """
@@ -59,8 +54,7 @@ class ResultStep(BaseStep):
         :param module: The module wrapped by this step
         :return: Step
         """
-        step = cls(inputs, stored_step["buffer_element"])
-        step.id = stored_step["id"]
+        step = cls(inputs, stored_step["buffer_element"], name=stored_step["buffer_element"])
         step.name = stored_step["name"]
         step.last = stored_step["last"]
         return step

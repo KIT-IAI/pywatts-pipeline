@@ -38,10 +38,7 @@ class TestEitherOrStep(unittest.TestCase):
 
     def test_load(self):
         params = {
-            "target_ids": {},
-            "input_ids": {2: "stepTwo", 1: "stepOne"},
             'default_run_setting': {'computation_mode': 4},
-            "id": -1,
             "module": "pywatts_pipeline.core.steps.either_or_step",
             "class": "EitherOrStep",
             "name": "EitherOrStep",

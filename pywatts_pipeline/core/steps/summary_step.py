@@ -48,7 +48,6 @@ class SummaryStep(Step):
         """
         step = cls(module, inputs, file_manager)
         step.inputs_steps = inputs
-        step.id = stored_step["id"]
         step.name = stored_step["name"]
         step.file_manager = file_manager
         return step
