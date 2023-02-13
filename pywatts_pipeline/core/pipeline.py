@@ -64,14 +64,16 @@ class Pipeline(BaseEstimator):
     :type path: str
     """
 
-    def __init__(self, path: Optional[str] = ".", name="Pipeline", steps=None, model_dict=None):
+    def __init__(self, path: Optional[str] = ".", name="Pipeline", steps=None, model_dict=None,
+                 score=None, score_direction="lower"):
         super().__init__(name)
         self.steps: Dict[str, BaseStep] = {}
         self.model_dict = model_dict if model_dict is not None else {}
         self._pipeline_construction_informations = steps if steps is not None else []
         self.result = {}
         self.start_steps = {}
-        self._score = "rmse"
+        self._score = score
+        self.score_direction = score_direction
         self.id_generator = UniqueIDGenerator()
         if path is None:
             self.file_manager = None
@@ -172,6 +174,16 @@ class Pipeline(BaseEstimator):
             return self.start_steps[edge]
         raise Exception()
 
+    def fit(self, *args, **kwargs):
+        if self.current_run_setting is None:
+            self.current_run_setting = RunSetting(computation_mode=ComputationMode.Train)
+        else:
+            self.current_run_setting.update(RunSetting(computation_mode=ComputationMode.Train))
+
+        data = args[0] if len(args) > 0 else kwargs
+        data = self._check_input(data)
+        self._transform(data)
+
     def transform(self, **x: xr.DataArray) -> xr.DataArray:
         """
         Transform the input into output, by performing all the step in this pipeline.
@@ -243,7 +255,9 @@ class Pipeline(BaseEstimator):
         """
         params = {"steps": self._pipeline_construction_informations,
                   "model_dict": self.model_dict,
-                  "path":self.file_manager.basic_path}
+                  "path":self.file_manager.basic_path,
+                  "score":self._score,
+                  "score_direction":self.score_direction}
         if not deep:
             return params
         for name, step in filter(lambda s: isinstance(s[1], Step), self.steps.items()):
@@ -311,7 +325,6 @@ class Pipeline(BaseEstimator):
         data: Union[pd.DataFrame, xr.Dataset],
         summary: bool = True,
         summary_formatter: SummaryFormatter = SummaryMarkdown(),
-        reset=True,
     ):
         """
         Executes all modules in the pipeline in the correct order. This method calls fit and transform on each module
@@ -595,17 +608,14 @@ class Pipeline(BaseEstimator):
             if isinstance(step, Step):
                 step.refit(start)
 
-    def set_score(self, name):
+    def set_score(self, name, direction="lower"):
         self._score = name
+        self.score_direction=direction
 
     def score(self, data):
         _, summary = self.test(data, summary_formatter=SummaryJSON())
-        #if self._score:
-        return list(summary["Summary"][self._score]["results"].values())[0] * -1 #TODO how I get the information if higher or lower ist better?
-            #summary = list(filter(lambda x: x.name==self._score, self.steps))[0]
-            #return list(summary.get_summaries(None).k_v.values())[0]
-        #else:
-         #   return summary[...]
+        if self._score:
+            return list(summary["Summary"][self._score]["results"].values())[0] * (-1 if self.score_direction == "lower" else 1)
 
     def draw(self):
         return visualise_pipeline(self.steps)
