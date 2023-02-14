@@ -328,7 +328,6 @@ class TestPipeline(unittest.TestCase):
         # Assert return value is correct
         self.assertEqual(merged_result, result)
 
-
     @patch('pywatts_pipeline.core.pipeline.FileManager')
     @patch("pywatts_pipeline.core.pipeline._get_time_indexes", return_value=["time"])
     def test_transform_pipeline(self, get_time_indexes_mock, fm_mock):
@@ -345,7 +344,6 @@ class TestPipeline(unittest.TestCase):
 
         step_two.get_result.assert_called_once_with(None, return_all=True)
         self.assertEqual({"step_two": result_mock}, result)
-
 
     @patch('pywatts_pipeline.core.pipeline.FileManager')
     @patch("pywatts_pipeline.core.pipeline._get_time_indexes", return_value="time")
