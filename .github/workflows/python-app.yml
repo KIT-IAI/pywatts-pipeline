@@ -39,7 +39,7 @@ jobs:
       run: |
         git clone https://github.com/KIT-IAI/pyWATTS.git
         cd pyWATTS
-        git checkout origin feature/use_sktime_base
+        git checkout feature/use_sktime_base
         cd examples
         python example.py
         python example_keras.py
