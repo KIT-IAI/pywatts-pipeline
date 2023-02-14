@@ -14,7 +14,7 @@ setuptools.setup(
     version="0.1.0",
     packages=setuptools.find_packages(),
 
-    install_requires=['cloudpickle', 'distlib', 'xarray>=0.19', 'numpy', 'pandas', 'tabulate'],
+    install_requires=['cloudpickle', 'distlib', 'xarray>=0.19', 'numpy', 'pandas', 'tabulate', 'sktime'],
     extras_require={
         'dev': dev + visualize,
         'visualize': visualize

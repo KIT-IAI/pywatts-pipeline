@@ -11,32 +11,24 @@ from pathlib import Path
 from typing import Union, List, Dict, Optional, Callable
 
 import pandas as pd
+import sktime.base
 import xarray as xr
 
 from pywatts_pipeline.core.steps.either_or_step import EitherOrStep
 from pywatts_pipeline.core.summary.base_summary import BaseSummary
-from pywatts_pipeline.core.transformer.base import BaseTransformer
+from pywatts_pipeline.core.transformer.base import BaseTransformer, BaseEstimator
 from pywatts_pipeline.core.steps.base_step import BaseStep
 from pywatts_pipeline.core.util.run_setting import RunSetting
 from pywatts_pipeline.core.util.computation_mode import ComputationMode
 from pywatts_pipeline.core.exceptions.io_exceptions import IOException
-from pywatts_pipeline.core.exceptions.wrong_parameter_exception import (
-    WrongParameterException,
-)
-from pywatts_pipeline.core.steps.base_step import BaseStep
+from pywatts_pipeline.core.util.filemanager import FileManager
 from pywatts_pipeline.core.steps.start_step import StartStep
 from pywatts_pipeline.core.steps.step import Step
 from pywatts_pipeline.core.steps.step_information import StepInformation
-from pywatts_pipeline.core.steps.summary_step import SummaryStep
-from pywatts_pipeline.core.summary.summary_formatter import (
-    SummaryMarkdown,
-    SummaryFormatter,
+from pywatts_pipeline.core.exceptions.wrong_parameter_exception import (
+    WrongParameterException,
 )
-from pywatts_pipeline.core.transformer.base import BaseTransformer
-from pywatts_pipeline.core.util.computation_mode import ComputationMode
-from pywatts_pipeline.core.util.filemanager import FileManager
-from pywatts_pipeline.core.util.run_setting import RunSetting
-from pywatts_pipeline.utils._pywatts_json_encoder import PyWATTSJsonEncoder
+from pywatts_pipeline.core.steps.summary_step import SummaryStep
 from pywatts_pipeline.utils._xarray_time_series_utils import (
     _get_time_indexes,
     get_last,
@@ -44,6 +36,7 @@ from pywatts_pipeline.utils._xarray_time_series_utils import (
 from pywatts_pipeline.utils._pywatts_json_encoder import PyWATTSJsonEncoder
 from pywatts_pipeline.core.summary.summary_formatter import (
     SummaryMarkdown,
+    SummaryJSON,
     SummaryFormatter,
 )
 from pywatts_pipeline.utils.unique_id_generator import UniqueIDGenerator
@@ -60,7 +53,7 @@ logger.setLevel(logging.DEBUG)
 logging.getLogger("matplotlib").setLevel(logging.WARN)
 
 
-class Pipeline(BaseTransformer):
+class Pipeline(BaseEstimator):
     """
     The pipeline class is the central class of pyWATTS. It is responsible for
     * The interaction with the user
@@ -71,13 +64,16 @@ class Pipeline(BaseTransformer):
     :type path: str
     """
 
-    def __init__(self, path: Optional[str] = ".", name="Pipeline", steps=None, model_dict=None):
+    def __init__(self, path: Optional[str] = ".", name="Pipeline", steps=None, model_dict=None,
+                 score=None, score_direction="lower"):
         super().__init__(name)
         self.steps: Dict[str, BaseStep] = {}
         self.model_dict = model_dict if model_dict is not None else {}
         self._pipeline_construction_informations = steps if steps is not None else []
         self.result = {}
         self.start_steps = {}
+        self._score = score
+        self.score_direction = score_direction
         self.id_generator = UniqueIDGenerator()
         if path is None:
             self.file_manager = None
@@ -138,6 +134,7 @@ class Pipeline(BaseTransformer):
     def _add(self, steps):
         self.steps = {}
         self.start_steps = {}
+        self._is_fitted = True # Assume that pipeline contains only transformer.
         from pywatts_pipeline.core.steps.step_factory import StepFactory
         step_informations = []
         for model_id, name, input_edges, add_params in steps:
@@ -178,6 +175,18 @@ class Pipeline(BaseTransformer):
             return self.start_steps[edge]
         raise Exception()
 
+    def fit(self, *args, **kwargs):
+        if self.current_run_setting is None:
+            self.current_run_setting = RunSetting(computation_mode=ComputationMode.Train)
+        else:
+            self.current_run_setting.update(RunSetting(computation_mode=ComputationMode.Train))
+
+        data = args[0] if len(args) > 0 else kwargs
+        data = self._check_input(data)
+        self._transform(data)
+        self._is_fitted = True
+        self.reset()
+
     def transform(self, **x: xr.DataArray) -> xr.DataArray:
         """
         Transform the input into output, by performing all the step in this pipeline.
@@ -190,6 +199,7 @@ class Pipeline(BaseTransformer):
         :return:The transformed data
         :rtype: xr.DataArray
         """
+        self.current_run_setting.update(RunSetting(computation_mode=ComputationMode.Transform))
         return self._transform(x)
 
     def _transform(self, x):
@@ -240,24 +250,47 @@ class Pipeline(BaseTransformer):
             result[key] = res
         return result
 
-    def get_params(self) -> Dict[str, object]:
+    def get_params(self, deep=False) -> Dict[str, object]:
         """
         Returns the parameter of a pipeline module
         :return: Dictionary containing information about this module
         :rtype: Dict
         """
-        return {}
+        params = {"steps": self._pipeline_construction_informations,
+                  "model_dict": self.model_dict,
+                  "path":self.file_manager.basic_path,
+                  "score":self._score,
+                  "score_direction":self.score_direction}
+        if not deep:
+            return params
+        for name, step in filter(lambda s: isinstance(s[1], Step), self.steps.items()):
+            step_params = step.module.get_params(deep=True)
+            params.update({f"{name}__{key}" : value for key, value in step_params.items()})
+        return params
+
 
     def set_params(self, **kwargs):
+        # TODO: Probably a list of used modules is better.
+        #  Recreate pipeline after a set is performed to ensure that no old information is used again.
+        #  See sktime compatible pywatts api. Assembled Step stuff.
         """
         Set params of pipeline module.
         """
         if "steps" in kwargs:
             self._add(kwargs.pop("steps"))
+        # TODO model_dict
         if "path" in kwargs:
             self.file_manager = FileManager(kwargs.pop("path"))
         if "name" in kwargs:
             self.name = kwargs.pop("name")
+        for name, step in filter(lambda s: isinstance(s[1], Step), self.steps.items()):
+            keys = list(filter(lambda k: k.startswith(name), kwargs.keys()))
+            step.module.set_params(**{
+                k[len(name) + 2:]: kwargs[k] for k in keys
+            })
+
+        # TODO should probably be a copy of self..
+        return self
 
     def test(
         self,
@@ -295,7 +328,6 @@ class Pipeline(BaseTransformer):
         data: Union[pd.DataFrame, xr.Dataset],
         summary: bool = True,
         summary_formatter: SummaryFormatter = SummaryMarkdown(),
-        reset=True,
     ):
         """
         Executes all modules in the pipeline in the correct order. This method calls fit and transform on each module
@@ -387,6 +419,8 @@ class Pipeline(BaseTransformer):
             f"Add {self.steps[name]} to the pipeline. Inputs are {self._find_step_names(step.input_steps)}"
             f" and the target is {self._find_step_names(step.targets)}."
         )
+        if hasattr(step, "module") and isinstance(step.module, BaseEstimator) and self.is_fitted:
+            self._is_fitted = step.module.is_fitted
 
     def save(self, fm: FileManager):
         """
@@ -400,7 +434,10 @@ class Pipeline(BaseTransformer):
             path = f"{path}_{number + 1}"
         self.to_folder(path)
         json_module["pipeline_path"] = path
-        json_module["params"] = {}
+        json_module["params"] = {
+            "score": self._score,
+            "score_direction": self.score_direction
+        }
         return json_module
 
     @classmethod
@@ -576,6 +613,15 @@ class Pipeline(BaseTransformer):
             # are gone, since before not all target variables are available
             if isinstance(step, Step):
                 step.refit(start)
+
+    def set_score(self, name, direction="lower"):
+        self._score = name
+        self.score_direction=direction
+
+    def score(self, data):
+        _, summary = self.test(data, summary_formatter=SummaryJSON())
+        if self._score:
+            return list(summary["Summary"][self._score]["results"].values())[0] * (-1 if self.score_direction == "lower" else 1)
 
     def draw(self):
         return visualise_pipeline(self.steps)
