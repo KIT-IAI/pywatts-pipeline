@@ -200,7 +200,7 @@ class TestPipeline(unittest.TestCase):
         self.pipeline.train(
             pd.DataFrame({"test": [1, 2, 2, 3, 4], "test2": [2, 2, 2, 2, 2], "target": [2, 2, 4, 4, -5]},
                          index=pd.DatetimeIndex(pd.date_range('2000-01-01', freq='24H', periods=5))),
-        summary=False)
+            summary=False)
 
     @patch('pywatts_pipeline.core.pipeline.Pipeline.create_summary')
     @patch('pywatts_pipeline.core.pipeline.FileManager')
@@ -225,6 +225,7 @@ class TestPipeline(unittest.TestCase):
         # Add some steps to the pipeline
         transformer = MagicMock()
         transformer.name = "magic_transformer"
+        transformer.is_fitted = True
 
         time = pd.date_range('2000-01-01', freq='24H', periods=7)
         ds = xr.Dataset({'foo': ('time', [2, 3, 4, 5, 6, 7, 8]), 'time': time})
@@ -241,10 +242,10 @@ class TestPipeline(unittest.TestCase):
         wrapped_lr = SKLearnWrapper(LinearRegression(), name="lr")
         wrapped_lr(x=self.pipeline["test"])
 
-        self.assertTrue(id(wrapped_lr) != self.pipeline.steps["lr"].module)
+        self.assertTrue(id(wrapped_lr) != id(self.pipeline.steps["lr"].module))
         self.assertTrue(isinstance(self.pipeline.steps["lr"].module, SKLearnWrapper))
         self.assertTrue(isinstance(wrapped_lr, SKLearnWrapper))
-        self.assertEquals(wrapped_lr.get_params(), self.pipeline.steps["lr"].module.get_params())
+        self.assertEquals(wrapped_lr.module.get_params(), self.pipeline.steps["lr"].module.module.get_params())
 
     @patch("pywatts_pipeline.core.pipeline.FileManager")
     @patch('pywatts_pipeline.core.pipeline.json')
@@ -281,7 +282,7 @@ class TestPipeline(unittest.TestCase):
         step_one.get_result.return_value = {"step": result_step_one}
         step_two.get_result.return_value = {"step_1": result_step_two}
 
-        result = self.pipeline._collect_results({"one" : step_one, "two": step_two}, None)
+        result = self.pipeline._collect_results({"one": step_one, "two": step_two}, None)
 
         # Assert that steps are correclty called.
         step_one.get_result.assert_called_once_with(None, return_all=True)
@@ -292,13 +293,16 @@ class TestPipeline(unittest.TestCase):
 
     @patch("pywatts_pipeline.core.pipeline.FileManager")
     def test_get_params(self, fm_mock):
-        result = Pipeline().get_params()
-        self.assertEqual(result, {"steps":[], "model_dict":{}})
+        pipeline = Pipeline()
+        result = pipeline.get_params()
+        self.assertEqual(result, {"steps": [], "model_dict": {}, "score": None, "score_direction": "lower",
+                                  "path": pipeline.file_manager.basic_path})
 
     def test_set_params(self):
         self.pipeline.set_params()
         self.assertEqual(self.pipeline.get_params(),
-                         {"steps":[], "model_dict":{}})
+                         {"steps": [], "model_dict": {}, "score": None, "score_direction": "lower",
+                          "path": self.fm_mock.basic_path})
 
     def test__collect_batch_results(self):
         step_one = MagicMock()
@@ -315,7 +319,7 @@ class TestPipeline(unittest.TestCase):
         step_one.get_result.return_value = {"step_one": result_step_one}
         step_two.get_result.return_value = {"step_two": result_step_two}
 
-        result = self.pipeline._collect_results({"step_one" : step_one, "step_two": step_two}, None)
+        result = self.pipeline._collect_results({"step_one": step_one, "step_two": step_two}, None)
 
         # Assert that steps are correclty called.
         step_one.get_result.assert_called_once_with(None, return_all=True)
@@ -323,7 +327,6 @@ class TestPipeline(unittest.TestCase):
 
         # Assert return value is correct
         self.assertEqual(merged_result, result)
-
 
     @patch('pywatts_pipeline.core.pipeline.FileManager')
     @patch("pywatts_pipeline.core.pipeline._get_time_indexes", return_value=["time"])
@@ -341,7 +344,6 @@ class TestPipeline(unittest.TestCase):
 
         step_two.get_result.assert_called_once_with(None, return_all=True)
         self.assertEqual({"step_two": result_mock}, result)
-
 
     @patch('pywatts_pipeline.core.pipeline.FileManager')
     @patch("pywatts_pipeline.core.pipeline._get_time_indexes", return_value="time")
@@ -368,6 +370,7 @@ class TestPipeline(unittest.TestCase):
         xr.testing.assert_equal(get_time_indexes_mock.call_args[0][0]["step_two"],
                                 da)
         self.assertFalse(get_time_indexes_mock.call_args[1]["get_all"])
+
     @patch("pywatts_pipeline.core.pipeline.FileManager")
     @patch("pywatts_pipeline.core.pipeline.Pipeline.from_folder")
     def test_load(self, from_folder_mock, fm_mock):
@@ -388,7 +391,7 @@ class TestPipeline(unittest.TestCase):
         os_mock.path.join.return_value = "save_path"
         os_mock.path.isdir.return_value = False
         sub_pipeline = Pipeline()
-        detector = MissingValueDetector()
+        detector = SKLearnWrapper(MagicMock())
         detector(dataset=sub_pipeline["test"])
         fm_mock = MagicMock()
         fm_mock.basic_path = "path_to_save"
@@ -399,9 +402,9 @@ class TestPipeline(unittest.TestCase):
         self.assertEqual({'name': 'Pipeline',
                           'class': 'Pipeline',
                           'module': 'pywatts_pipeline.core.pipeline',
-                          'params': {},
+                          'params': {"score":None, "score_direction":"lower"},
+                          'is_fitted': False,
                           'pipeline_path': 'save_path'}, result)
-
 
     @patch('pywatts_pipeline.core.pipeline.FileManager')
     def test_test(self, fm_mock):
@@ -505,6 +508,7 @@ class TestPipeline(unittest.TestCase):
 
         assert not isinstance(result, tuple)
         xr.testing.assert_equal(result["second"], da)
+
     def test_pipeline_path_none(self):
         pipeline = Pipeline(None)
 
@@ -532,7 +536,6 @@ class TestPipeline(unittest.TestCase):
         result = pipeline.train(data)
         assert not isinstance(result, tuple)
         assert pipeline.file_manager is None
-
 
     @patch("builtins.open", new_callable=mock_open)
     def test_horizon_greater_one_regression_inclusive_summary_file(self, open_mock):

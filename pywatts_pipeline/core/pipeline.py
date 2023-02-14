@@ -134,6 +134,7 @@ class Pipeline(BaseEstimator):
     def _add(self, steps):
         self.steps = {}
         self.start_steps = {}
+        self._is_fitted = True # Assume that pipeline contains only transformer.
         from pywatts_pipeline.core.steps.step_factory import StepFactory
         step_informations = []
         for model_id, name, input_edges, add_params in steps:
@@ -183,6 +184,8 @@ class Pipeline(BaseEstimator):
         data = args[0] if len(args) > 0 else kwargs
         data = self._check_input(data)
         self._transform(data)
+        self._is_fitted = True
+        self.reset()
 
     def transform(self, **x: xr.DataArray) -> xr.DataArray:
         """
@@ -431,7 +434,10 @@ class Pipeline(BaseEstimator):
             path = f"{path}_{number + 1}"
         self.to_folder(path)
         json_module["pipeline_path"] = path
-        json_module["params"] = {}
+        json_module["params"] = {
+            "score": self._score,
+            "score_direction": self.score_direction
+        }
         return json_module
 
     @classmethod
