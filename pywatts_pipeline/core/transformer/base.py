@@ -41,15 +41,6 @@ class Base(ABC, skbase.BaseEstimator):
         self.has_inverse_transform = False
         self.has_predict_proba = False
 
-    def get_params(self, deep=False) -> Dict[str, object]:
-        """
-        Get params
-        :return: Dict with params
-        """
-        params = super().get_params(deep=deep)
-        del params["name"]
-        return params
-
     @abstractmethod
     def fit(self, **kwargs):
         """
@@ -133,8 +124,7 @@ class Base(ABC, skbase.BaseEstimator):
         :rtype: Base
         """
         params = load_information["params"]
-        name = load_information["name"]
-        return cls(name=name, **params)
+        return cls(**params)
 
     def refit(self, **kwargs):
         """

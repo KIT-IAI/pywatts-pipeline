@@ -119,7 +119,10 @@ class Pipeline(BaseEstimator):
         self.reset()
         unique_id = self.id_generator.get_id(estimator)
         if not unique_id in self.model_dict:
-            self.model_dict[unique_id] = deepcopy(estimator)
+            if hasattr(estimator, "clone"):
+                self.model_dict[unique_id] = estimator.clone()
+            else:
+                self.model_dict[unique_id] = deepcopy(estimator)
 
         self._pipeline_construction_informations.append(
             [unique_id, name, input_edges, {"callbacks": callbacks if not callbacks is None else [],
@@ -590,7 +593,7 @@ class Pipeline(BaseEstimator):
 
     def create_summary(self, summary_formatter: SummaryFormatter = SummaryMarkdown(), start=None):
         summaries = self._get_summaries(start)
-        return summary_formatter.create_summary(summaries, self.file_manager)
+        return summary_formatter.create_summary(summaries, fm=self.file_manager)
 
     def _get_summaries(self, start):
         summaries = []
@@ -619,5 +622,5 @@ class Pipeline(BaseEstimator):
         if self._score:
             return list(summary["Summary"][self._score]["results"].values())[0] * (-1 if self.score_direction == "lower" else 1)
 
-    def draw(self):
-        return visualise_pipeline(self.steps)
+    def draw(self, skip=None):
+        return visualise_pipeline(self.steps, [] if skip is None else skip)
