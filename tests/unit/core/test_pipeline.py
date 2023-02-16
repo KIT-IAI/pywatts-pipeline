@@ -206,7 +206,7 @@ class TestPipeline(unittest.TestCase):
     @patch('pywatts_pipeline.core.pipeline.FileManager')
     def test_add_pipeline_to_pipeline_and_train(self, fm_mock, create_summary_mock):
         sub_pipeline = Pipeline()
-
+        fm_mock().basic_path = "BASIC_PATH"
         detector = MissingValueDetector()
 
         detector(dataset=sub_pipeline["regression"])
@@ -224,7 +224,7 @@ class TestPipeline(unittest.TestCase):
     def test_add_pipeline_to_pipeline_and_test(self):
         # Add some steps to the pipeline
         transformer = MagicMock()
-        transformer.name = "magic_transformer"
+        transformer.clone().name = "magic_transformer"
         transformer.is_fitted = True
 
         time = pd.date_range('2000-01-01', freq='24H', periods=7)
@@ -255,7 +255,7 @@ class TestPipeline(unittest.TestCase):
 
         detector = MissingValueDetector()
         detector(dataset=sub_pipeline["regressor"])
-
+        fm_mock().basic_path = "BASIC_PATH"
         regressor = SKLearnWrapper(LinearRegression())(x=self.pipeline["test"])
         sub_pipeline(regression=regressor)
 
