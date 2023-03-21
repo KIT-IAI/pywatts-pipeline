@@ -56,6 +56,10 @@ class BaseStep(ABC):
             self.name + " Training Time", category=SummaryCategory.FitTime
         )
         self.finished = False
+        self.is_executed=False
+
+    def reset_is_executed(self):
+        self.is_executed = False
 
     @abstractmethod
     def get_result(
@@ -102,8 +106,8 @@ class BaseStep(ABC):
                 )
         self.finished = True
         if return_all:
-            return copy.deepcopy(self.buffer)
-        return list(self.buffer.values())[0].copy()
+            return {k: v for k, v in self.buffer.items()}
+        return list(self.buffer.values())[0]
 
     def update_buffer(self, x: xr.DataArray, index):
         if len(x) == 0:
@@ -113,14 +117,9 @@ class BaseStep(ABC):
         else:
             dim = _get_time_indexes(self.buffer[index], get_all=False)
             last = get_last(self.buffer[index])
-            if index != dim:
-                self.buffer[index] = xr.concat(
-                    [self.buffer[index], x[x[dim] > last].dropna(dim)], dim=dim
-                )
-            else:
-                self.buffer[index] = xr.concat(
-                    [self.buffer[index], x[x[dim] > last]], dim=dim
-                )
+            self.buffer[index] = xr.concat(
+                [self.buffer[index], x[x[dim] > last]], dim=dim
+            )
 
 
     def get_json(self, fm: FileManager) -> Dict:

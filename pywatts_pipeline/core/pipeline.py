@@ -89,6 +89,7 @@ class Pipeline(BaseEstimator):
             computation_mode: ComputationMode = ComputationMode.Default,
             refit_conditions: List[Union[Callable, bool]] = None,
             lag: Optional[int] = pd.Timedelta(hours=0),
+            temporal_align=True,
             method=None):
         """
         Add a transformer or estimator to the pipeline.
@@ -130,13 +131,18 @@ class Pipeline(BaseEstimator):
                                            "computation_mode": computation_mode,
                                            "refit_conditions": refit_conditions if not refit_conditions is None else [],
                                            "lag": lag,
-                                           "method": method}]
+                                           "method": method,
+                                            "temporal_align" :temporal_align}]
         )
-        return self._add(self._pipeline_construction_informations)[-1]
+        return self._add([self._pipeline_construction_informations[-1]])[-1]
+        #return StepInformation(name, self)
+
 
     def _add(self, steps):
-        self.steps = {}
-        self.start_steps = {}
+        # TODO make checks and renamings etc. without constructing the whole pipeline.
+        #      Since this becomes really expensive if the pipeline is huge!
+        #self.steps = {}
+        #self.start_steps = {}
         self._is_fitted = True # Assume that pipeline contains only transformer.
         from pywatts_pipeline.core.steps.step_factory import StepFactory
         step_informations = []
@@ -179,6 +185,9 @@ class Pipeline(BaseEstimator):
         raise Exception()
 
     def fit(self, *args, **kwargs):
+        for step in self.steps.values():
+            step.reset_is_executed()
+
         if self.current_run_setting is None:
             self.current_run_setting = RunSetting(computation_mode=ComputationMode.Train)
         else:
@@ -206,6 +215,8 @@ class Pipeline(BaseEstimator):
         return self._transform(x)
 
     def _transform(self, x):
+        for step in self.steps.values():
+            step.reset_is_executed()
         # New data are arrived. Thus no step is finished anymore.
         for step in self.steps.values():
             step.finished = False
@@ -342,16 +353,19 @@ class Pipeline(BaseEstimator):
         :return: The result of all end points of the pipeline
         :rtype: Dict[xr.DataArray]
         """
+#        self._add(self._pipeline_construction_informations)
+
         result = self._run(
             data, ComputationMode.FitTransform, summary, summary_formatter, reset=True
         )
-        self.reset()
+        # TODO test and try to verify it. reset as a parameter?
+        #self.reset(keep_buffer=True)
         return result
 
-    def reset(self):
+    def reset(self, keep_buffer=False):
         for step in self.steps.values():
             self.result = {}
-            step.reset()
+            step.reset(keep_buffer=keep_buffer)
 
     def _run(
         self,
@@ -398,6 +412,9 @@ class Pipeline(BaseEstimator):
             data = {key: data[key] for key in data.data_vars}
         elif isinstance(data, dict):
             for key in data:
+                if isinstance(data[key], pd.DataFrame):
+                    # TODO check that Dataframe has only one column!
+                    data[key] = data[key][key].to_xarray()
                 if not isinstance(data[key], xr.DataArray):
                     raise WrongParameterException(
                         "Input Dict does not contain xr.DataArray objects.",

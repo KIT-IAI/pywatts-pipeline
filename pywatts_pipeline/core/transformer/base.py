@@ -149,6 +149,7 @@ class Base(ABC, skbase.BaseEstimator):
         refit_conditions: List[Union[Callable, bool]] = None,
         lag: Optional[int, pd.Timedelta] = pd.Timedelta(hours=0),
         retrain_batch: Optional[int] = pd.Timedelta(hours=24),
+        temporal_align = True,
         **kwargs: Union[StepInformation, Tuple[StepInformation, ...]],
     ) -> StepInformation:
         """
@@ -207,7 +208,9 @@ class Base(ABC, skbase.BaseEstimator):
             refit_conditions=[] if refit_conditions is None else refit_conditions
             if isinstance(refit_conditions, list) else [refit_conditions],
             lag=lag,
+            temporal_align = temporal_align,
         )
+
     @staticmethod
     def _extract_pipeline(kwargs):
         from pywatts_pipeline.core.steps.step_factory import StepInformation
@@ -216,6 +219,8 @@ class Base(ABC, skbase.BaseEstimator):
         for input_step in kwargs.values():
             if isinstance(input_step, StepInformation):
                 pipeline_temp = input_step.pipeline
+                #TODO Shortcut
+                return pipeline_temp
             elif isinstance(input_step, tuple):
                 # We assume that a tuple consists only of step informations and do not contain a pipeline.
                 pipeline_temp = input_step[0].pipeline
@@ -234,7 +239,7 @@ class Base(ABC, skbase.BaseEstimator):
             if pipeline is None:
                 pipeline = pipeline_temp
 
-            if not pipeline_temp == pipeline:
+            if not id(pipeline_temp) == id(pipeline):
                 raise StepCreationException(
                     f"A step can only be part of one pipeline. Assure that all inputs {kwargs}"
                     f"are part of the same pipeline."

@@ -66,6 +66,7 @@ class Step(BaseStep):
                  condition=None,
                  refit_conditions:List[BaseCondition]=None,
                  retrain_batch=pd.Timedelta(hours=24),
+                 temporal_align = True,
                  lag=pd.Timedelta(hours=24)):
         super().__init__(
             input_steps,
@@ -74,6 +75,7 @@ class Step(BaseStep):
             computation_mode=computation_mode,
             name=module.name,
         )
+        self.temporal_align = temporal_align
         self.method = method
         self.file_manager = file_manager
         self.module = module
@@ -110,16 +112,20 @@ class Step(BaseStep):
         :type end: Optional[pd.Timestamp]
         :return: The resulting data or None if no data are calculated
         """
-        # Check if step should be executed.
-        if self._should_stop(start, minimum_data):
-            return None
-        self._compute(start, minimum_data)
+        if not self.is_executed:
+            # Check if step should be executed.
+            if self._should_stop(start, minimum_data):
+                return None
+            self._compute(start, minimum_data)
+            self.is_executed = True
         return self._pack_data(start, return_all=return_all, minimum_data=minimum_data)
 
-    def _fit(self, inputs: Dict[str, BaseStep], target_step):
+    def _fit(self, input_data: Dict[str, BaseStep], target):
         # Fit the encapsulate module, if the input and the target is not stopped.
+        if self.temporal_align:
+            input_data, target = self.temporal_align_inputs(input_data, target)
         start_time = time.time()
-        self.module.fit(**inputs, **target_step)
+        self.module.fit(**input_data, **target)
         self.training_time.set_kv("", time.time() - start_time)
 
     def _callbacks(self):
@@ -139,6 +145,8 @@ class Step(BaseStep):
         return [self.transform_time, self.training_time]
 
     def _transform(self, input_data):
+        if self.temporal_align:
+            input_data, _ = self.temporal_align_inputs(input_data)
         # TODO has to be more general for sktime
         if isinstance(self.module, BaseEstimator) and not self.module.is_fitted:
             message = f"Try to call transform in {self.name} on not fitted module {self.module.name}"
@@ -252,19 +260,17 @@ class Step(BaseStep):
         if not self._last_computed_entry is None and self._last_computed_entry >= _get_time_indexes(input_data, get_all=False, get_index=True)[-1]:
             return
         self._last_computed_entry = _get_time_indexes(input_data, get_all=False, get_index=True)[-1]
-
+        # TODO check if this is possible
         if self.current_run_setting.computation_mode in [ComputationMode.Default,
                                                          ComputationMode.FitTransform,
                                                          ComputationMode.Train] \
                 or (self.current_run_setting.computation_mode == ComputationMode.Refit
                     and isinstance(self.module, BaseEstimator)
                     and not self.module.is_fitted):
-            in_data, target = self.temporal_align_inputs(input_data, target)
-            self._fit(in_data, target)
+            self._fit(input_data, target)
         elif self.module is BaseEstimator:  # TODO more general for sktime
             logger.info("%s not fitted in Step %s", self.module.name, self.name)
-        in_data, _ = self.temporal_align_inputs(input_data)
-        self._transform(in_data)
+        self._transform(input_data)
 
     def _get_inputs(self, input_steps, start, minimum_data=(0, pd.Timedelta(0))):
         min_data_module = self.module.get_min_data()
@@ -341,9 +347,10 @@ class Step(BaseStep):
         )
         # Refit only if enough data are available
         if list(filter(lambda x: x is not None, refit_input.values())):
-            refit_input, refit_target = self.temporal_align_inputs(
-                refit_input, refit_target
-            )
+            if self.temporal_align:
+                refit_input, refit_target = self.temporal_align_inputs(
+                    refit_input, refit_target
+             )
             self.module.refit(**refit_input, **refit_target)
 
     def get_result_step(self, key: str):
