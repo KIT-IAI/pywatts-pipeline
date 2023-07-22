@@ -136,7 +136,7 @@ class Step(BaseStep):
         :rtype: Str
         """
         self._callbacks()
-        return [self.transform_time, self.training_time]
+        return [self.transform_time, self.training_time, self.refit_time]
 
     def _transform(self, input_data):
         # TODO has to be more general for sktime
@@ -344,7 +344,9 @@ class Step(BaseStep):
             refit_input, refit_target = self.temporal_align_inputs(
                 refit_input, refit_target
             )
+            start_time = time.time()
             self.module.refit(**refit_input, **refit_target)
+            self.refit_time.set_kv(f"{start}", time.time() - start_time)
 
     def get_result_step(self, key: str):
         """
