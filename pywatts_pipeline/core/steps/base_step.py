@@ -55,6 +55,9 @@ class BaseStep(ABC):
         self.training_time = SummaryObjectList(
             self.name + " Training Time", category=SummaryCategory.FitTime
         )
+        self.refit_time = SummaryObjectList(
+            self.name + " Refit Time", category=SummaryCategory.FitTime
+        )
         self.finished = False
 
     @abstractmethod
