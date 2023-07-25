@@ -207,6 +207,7 @@ class Base(ABC, skbase.BaseEstimator):
             refit_conditions=[] if refit_conditions is None else refit_conditions
             if isinstance(refit_conditions, list) else [refit_conditions],
             lag=lag,
+            retrain_batch=retrain_batch,
         )
     @staticmethod
     def _extract_pipeline(kwargs):

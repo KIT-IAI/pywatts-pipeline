@@ -41,6 +41,7 @@ class StepFactory:
             computation_mode: ComputationMode = ComputationMode.Default,
             refit_conditions: List[Union[Callable, bool]] = None,
             lag: Optional[int] = pd.Timedelta(hours=0),
+            retrain_batch = pd.Timedelta(hours=24)
     ) -> Tuple[List[BaseStep], BaseStep, List[BaseStep]]:
         """
         Creates a appropriate step for the current situation.
@@ -87,7 +88,7 @@ class StepFactory:
                 callbacks=callbacks,
                 computation_mode=computation_mode,
                 condition=condition,
-                refit_conditions=refit_conditions,  # retrain_batch=retrain_batch,
+                refit_conditions=refit_conditions, retrain_batch=retrain_batch,
                 lag=lag,
             )
         else:
@@ -100,7 +101,7 @@ class StepFactory:
                 callbacks=callbacks,
                 computation_mode=computation_mode,
                 condition=condition,
-                refit_conditions=refit_conditions,  # retrain_batch=retrain_batch,
+                refit_conditions=refit_conditions, retrain_batch=retrain_batch,
                 lag=lag,
             )
 
