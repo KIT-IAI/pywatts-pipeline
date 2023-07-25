@@ -89,7 +89,8 @@ class Pipeline(BaseEstimator):
             computation_mode: ComputationMode = ComputationMode.Default,
             refit_conditions: List[Union[Callable, bool]] = None,
             lag: Optional[int] = pd.Timedelta(hours=0),
-            method=None):
+            method=None,
+            retrain_batch=pd.Timedelta(hours=24)):
         """
         Add a transformer or estimator to the pipeline.
         :param estimator: A pyWATTS transformer or estimator
@@ -130,7 +131,8 @@ class Pipeline(BaseEstimator):
                                            "computation_mode": computation_mode,
                                            "refit_conditions": refit_conditions if not refit_conditions is None else [],
                                            "lag": lag,
-                                           "method": method}]
+                                           "method": method,
+                                           "retrain_batch": retrain_batch}]
         )
         return self._add(self._pipeline_construction_informations)[-1]
 
