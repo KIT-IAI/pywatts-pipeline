@@ -3,8 +3,16 @@
 [![Documentation](https://readthedocs.org/projects/pywatts/badge/)](https://pywatts.readthedocs.io/en/latest/)
 
 
-# pyWATTS Pipeline
+# pyWATTS Pipeline - Now Deprecated
 
+**Please note that pyWATTS Pipeline is no longer actively maintained. Therefore, the contents of this repository are now read-only!**
+
+**The functionality of pyWATTS Pipeline has now been integrated into the open source python pacakge [sktime](https://www.sktime.net/en/stable/).**
+
+We would like to thank everybody who has helped develop, test, and use pyWATTS Pipeline in the last few years and strongly advise all past pyWATTS users to apply [sktime](https://www.sktime.net/en/stable/) in the future.
+
+
+# Legacy Information
 This repository contains the functionality to define and execute a Graphpipeline for machine learning workflows.
 Such workflows may include all tasks in time series analysis ranging from outlier handling as preprocessing to rescaling as postprocessing.
 
@@ -75,19 +83,12 @@ Therefore, pyWATTS is an automation tool for time series analysis that implement
 
 ## Current Development Status
 
+pyWATTS Pipeline is deprecated and will no longer be maintained.
+
 ### Standing assumptions
 
 * The graph representing the pipeline is a directed acyclic graph (DAG).
 * The first coordinate is always the time coordinate.
-
-### Known issues* Currently, no edge cases are tested.
-
-* Currently, no pipeline checks are implemented.
-
-### Outlook on further features
-
-* Multiprocessing
-* Native Support for sktime
 
 # Funding
 
@@ -97,7 +98,3 @@ This project is supported by the Helmholtz Association under the Program “Ener
 If you use this framework in a scientific publication please cite the corresponding paper:
 
 >Benedikt Heidrich, Andreas Bartschat, Marian Turowski, Oliver Neumann, Kaleb Phipps, Stefan Meisenbacher, Kai Schmieder, Nicole Ludwig, Ralf Mikut, Veit Hagenmeyer. “pyWATTS: Python Workflow Automation Tool for Time Series.” (2021). ). arXiv:2106.10157. http://arxiv.org/abs/2106.10157
-
-# Contact
-If you have any questions and want to talk to the pyWATTS Team directly, feel free to [contact us](mailto:pywatts-team@iai.kit.edu).
-For more information on pyWATTSvisit the [project website](https://www.iai.kit.edu/english/1266_4162.php).
