@@ -7,7 +7,7 @@
 
 **Please note that pyWATTS Pipeline is no longer actively maintained. Therefore, the contents of this repository are now read-only!**
 
-**The functionality of pyWATTS Pipeline has now been integrated into the open source python pacakge [sktime](https://www.sktime.net/en/stable/).**
+**The functionality of pyWATTS Pipeline has now been integrated into the open source python package [sktime](https://www.sktime.net/en/stable/).**
 
 We would like to thank everybody who has helped develop, test, and use pyWATTS Pipeline in the last few years and strongly advise all past pyWATTS users to apply [sktime](https://www.sktime.net/en/stable/) in the future.
 
